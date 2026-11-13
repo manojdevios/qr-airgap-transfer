@@ -42,7 +42,6 @@
       padding: 16px 16px 48px;
     }
 
-    /* Header */
     header {
       display: flex;
       flex-wrap: wrap;
@@ -119,7 +118,6 @@
       background: currentColor;
     }
 
-    /* Mode Switcher */
     .mode-tabs {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -158,7 +156,6 @@
     .mode-panel { display: none; }
     .mode-panel.active { display: block; }
 
-    /* Cards & Controls */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -292,7 +289,6 @@
       color: var(--text);
     }
 
-    /* Controls Grid */
     .controls-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -358,7 +354,6 @@
       outline: none;
     }
 
-    /* QR Stage */
     .qr-stage {
       display: flex;
       flex-direction: column;
@@ -384,7 +379,6 @@
       border-radius: 8px;
     }
 
-    /* Pure white high-contrast QR container to prevent glare & contrast loss */
     .qr-card-white {
       background: #ffffff;
       padding: 24px;
@@ -440,7 +434,6 @@
       margin-top: 16px;
     }
 
-    /* Reader Viewfinder */
     .video-wrap {
       position: relative;
       width: 100%;
@@ -450,7 +443,7 @@
       overflow: hidden;
       background: #05080f;
       border: 1px solid var(--border);
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 1 / 1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -465,11 +458,11 @@
 
     .reticle {
       position: absolute;
-      inset: 12%;
-      border: 2px dashed rgba(56, 189, 248, 0.55);
+      inset: 10%;
+      border: 2px dashed rgba(56, 189, 248, 0.65);
       border-radius: 16px;
       pointer-events: none;
-      box-shadow: 0 0 0 9999px rgba(5, 8, 15, 0.28);
+      box-shadow: 0 0 0 9999px rgba(5, 8, 15, 0.25);
       transition: border-color 0.15s ease;
     }
 
@@ -483,7 +476,7 @@
       bottom: 12px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(11, 15, 23, 0.86);
+      background: rgba(11, 15, 23, 0.88);
       backdrop-filter: blur(6px);
       border: 1px solid var(--border);
       color: var(--text);
@@ -497,7 +490,6 @@
       text-overflow: ellipsis;
     }
 
-    /* Progress & Chunk Grid */
     .progress-header {
       display: flex;
       justify-content: space-between;
@@ -556,7 +548,6 @@
       color: #051b11;
     }
 
-    /* Completion Screen */
     .complete-banner {
       background: var(--success-bg);
       border: 1px solid rgba(16, 185, 129, 0.45);
@@ -816,7 +807,8 @@
     function rsDecode(codewords, ecLen) {
       const n = codewords.length;
       const msg = Uint8Array.from(codewords);
-      // Compute syndromes
+
+      // 1. Compute syndromes S_0 .. S_{ecLen-1}
       const synd = new Uint8Array(ecLen);
       let hasError = false;
       for (let i = 0; i < ecLen; i++) {
@@ -830,15 +822,15 @@
       }
       if (!hasError) return msg.slice(0, n - ecLen);
 
-      // Berlekamp-Massey
+      // 2. Berlekamp-Massey (ascending powers: errLoc[0] = 1, errLoc[1] = L1, ...)
       let errLoc = [1];
       let oldLoc = [1];
       for (let i = 0; i < ecLen; i++) {
         let delta = synd[i];
         for (let j = 1; j < errLoc.length; j++) {
-          delta ^= gfMul(errLoc[errLoc.length - 1 - j], synd[i - j]);
+          delta ^= gfMul(errLoc[j], synd[i - j]);
         }
-        oldLoc.push(0);
+        oldLoc.unshift(0);
         if (delta !== 0) {
           if (oldLoc.length > errLoc.length) {
             const newLoc = oldLoc.map(v => gfMul(v, delta));
@@ -846,64 +838,70 @@
             errLoc = newLoc;
           }
           for (let j = 0; j < oldLoc.length; j++) {
-            errLoc[errLoc.length - 1 - j] ^= gfMul(oldLoc[oldLoc.length - 1 - j], delta);
+            errLoc[j] ^= gfMul(oldLoc[j], delta);
           }
         }
       }
 
       const errs = errLoc.length - 1;
-      if (errs * 2 > ecLen) return null;
+      if (errs === 0 || errs * 2 > ecLen) return null;
 
-      // Chien Search
+      // 3. Chien search for roots X_l^{-1} = alpha^{-m}
+      const errPowers = [];
       const errPos = [];
-      for (let i = 0; i < n; i++) {
+      for (let m = 0; m < n; m++) {
+        const xInv = GF_EXP[(255 - (m % 255)) % 255];
         let sum = 0;
-        const xInv = GF_EXP[(255 - i) % 255];
+        let xPow = 1;
         for (let j = 0; j < errLoc.length; j++) {
-          sum = gfMul(sum, xInv) ^ errLoc[j];
+          sum ^= gfMul(errLoc[j], xPow);
+          xPow = gfMul(xPow, xInv);
         }
-        if (sum === 0) errPos.push(n - 1 - i);
+        if (sum === 0) {
+          errPowers.push(m);
+          errPos.push(n - 1 - m);
+        }
       }
       if (errPos.length !== errs) return null;
 
-      // Forney algorithm
-      const syndRev = Array.from(synd).reverse();
-      // Compute errEval = (synd * errLoc) mod x^ecLen
-      const prod = new Array(syndRev.length + errLoc.length - 1).fill(0);
-      for (let i = 0; i < syndRev.length; i++) {
+      // 4. Forney algorithm: Omega(x) = (S(x) * Lambda(x)) mod x^ecLen
+      const omega = new Uint8Array(ecLen);
+      for (let i = 0; i < ecLen; i++) {
+        let sum = 0;
         for (let j = 0; j < errLoc.length; j++) {
-          prod[i + j] ^= gfMul(syndRev[i], errLoc[j]);
+          if (i - j >= 0) {
+            sum ^= gfMul(synd[i - j], errLoc[j]);
+          }
         }
+        omega[i] = sum;
       }
-      const errEval = prod.slice(prod.length - ecLen);
 
       for (let i = 0; i < errPos.length; i++) {
+        const m = errPowers[i];
         const pos = errPos[i];
-        const xInv = GF_EXP[(n - 1 - pos) % 255];
-        const x = GF_EXP[(255 - ((n - 1 - pos) % 255)) % 255];
+        const x = GF_EXP[m % 255];
+        const xInv = GF_EXP[(255 - (m % 255)) % 255];
 
         let num = 0;
-        for (let j = 0; j < errEval.length; j++) {
-          num = gfMul(num, xInv) ^ errEval[j];
+        let xPow = 1;
+        for (let j = 0; j < ecLen; j++) {
+          num ^= gfMul(omega[j], xPow);
+          xPow = gfMul(xPow, xInv);
         }
         num = gfMul(num, x);
 
         let den = 0;
-        for (let j = errLoc.length - 2; j >= 0; j -= 2) {
-          // Derivative of errLoc in GF(2^m) keeps odd powers
-        }
-        const deg = errLoc.length - 1;
-        for (let p = 1; p <= deg; p += 2) {
-          const coef = errLoc[deg - p];
-          let term = coef;
-          for (let k = 0; k < p - 1; k++) term = gfMul(term, xInv);
-          den ^= term;
+        let xInvSqPow = 1;
+        const xInvSq = gfMul(xInv, xInv);
+        for (let j = 1; j < errLoc.length; j += 2) {
+          den ^= gfMul(errLoc[j], xInvSqPow);
+          xInvSqPow = gfMul(xInvSqPow, xInvSq);
         }
         if (den === 0) return null;
         msg[pos] ^= gfDiv(num, den);
       }
 
-      // Re-verify syndromes
+      // 5. Re-verify all syndromes are zero
       for (let i = 0; i < ecLen; i++) {
         let s = 0;
         const root = GF_EXP[i];
@@ -916,7 +914,6 @@
     /* =========================================================================
        2. ISO/IEC 18004 QR TABLES (VERSIONS 1..40, ERROR CORRECTION LEVEL M & L)
        ========================================================================= */
-    // [totalCw, ecPerBlock, g1Blocks, g1DataCw, g2Blocks, g2DataCw]
     const QR_M_TABLE = [
       null,
       [26, 10, 1, 16, 0, 0], [44, 16, 1, 28, 0, 0], [70, 26, 1, 44, 0, 0], [100, 18, 2, 32, 0, 0],
@@ -988,7 +985,6 @@
 
     function evaluatePenalty(mat, dim) {
       let penalty = 0;
-      // N1: 5+ consecutive same-color modules in row/col
       for (let r = 0; r < dim; r++) {
         let runColor = mat[r][0], runLen = 1;
         for (let c = 1; c < dim; c++) {
@@ -1015,16 +1011,12 @@
           }
         }
       }
-      // N2: 2x2 blocks
       for (let r = 0; r < dim - 1; r++) {
         for (let c = 0; c < dim - 1; c++) {
           const v = mat[r][c];
-          if (v === mat[r][c + 1] && v === mat[r + 1][c] && v === mat[r + 1][c + 1]) {
-            penalty += 3;
-          }
+          if (v === mat[r][c + 1] && v === mat[r + 1][c] && v === mat[r + 1][c + 1]) penalty += 3;
         }
       }
-      // N3: Finder-like 1:1:3:1:1 patterns (1011101 with 4 light modules before or after)
       for (let r = 0; r < dim; r++) {
         for (let c = 0; c <= dim - 11; c++) {
           const row = mat[r];
@@ -1042,7 +1034,6 @@
               mat[r+4][c] === 1 && mat[r+5][c] === 0 && mat[r+6][c] === 1 && mat[r+7][c] === 1 && mat[r+8][c] === 1 && mat[r+9][c] === 0 && mat[r+10][c] === 1) penalty += 40;
         }
       }
-      // N4: Dark module proportion
       let dark = 0;
       for (let r = 0; r < dim; r++) {
         for (let c = 0; c < dim; c++) dark += mat[r][c];
@@ -1076,7 +1067,7 @@
         for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
       };
 
-      pushBits(0b0100, 4); // Byte mode
+      pushBits(0b0100, 4);
       pushBits(n, ccBits);
       for (let i = 0; i < n; i++) pushBits(raw[i], 8);
       pushBits(0, Math.min(4, capCw * 8 - bits.length));
@@ -1131,7 +1122,6 @@
         }
       };
 
-      // Finder patterns + separators
       for (const [fr, fc] of [[0, 0], [0, dim - 7], [dim - 7, 0]]) {
         for (let r = -1; r <= 7; r++) {
           for (let c = -1; c <= 7; c++) {
@@ -1145,7 +1135,6 @@
         }
       }
 
-      // Alignment patterns
       const coords = ALIGN_COORD[ver];
       for (const ar of coords) {
         for (const ac of coords) {
@@ -1158,16 +1147,13 @@
         }
       }
 
-      // Timing patterns
       for (let i = 8; i < dim - 8; i++) {
         if (!isFunc[6][i]) setFunc(baseMat, 6, i, i % 2 === 0);
         if (!isFunc[i][6]) setFunc(baseMat, i, 6, i % 2 === 0);
       }
 
-      // Dark module
       setFunc(baseMat, 4 * ver + 9, 8, true);
 
-      // Reserve format info
       for (let i = 0; i < 9; i++) {
         if (!isFunc[8][i]) setFunc(baseMat, 8, i, false);
         if (!isFunc[i][8]) setFunc(baseMat, i, 8, false);
@@ -1175,7 +1161,6 @@
       for (let i = 0; i < 8; i++) setFunc(baseMat, 8, dim - 1 - i, false);
       for (let i = 0; i < 7; i++) setFunc(baseMat, dim - 1 - i, 8, false);
 
-      // Version info (V >= 7)
       if (ver >= 7) {
         const verInfo = computeVersionInfo(ver);
         for (let i = 0; i < 18; i++) {
@@ -1187,7 +1172,6 @@
         }
       }
 
-      // Place data bits
       const allBits = [];
       for (const cw of interleaved) {
         for (let b = 7; b >= 0; b--) allBits.push((cw >> b) & 1);
@@ -1212,7 +1196,6 @@
         col -= 2;
       }
 
-      // Evaluate all 8 masks and choose lowest penalty
       let bestMat = null;
       let bestPenalty = Infinity;
       const tlCoords = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
@@ -1226,7 +1209,7 @@
             if (!isFunc[r][c] && maskBit(m, r, c)) cand[r][c] ^= 1;
           }
         }
-        const fmtInfo = computeFormatInfo(0b00, m); // EC Level M = 00
+        const fmtInfo = computeFormatInfo(0b00, m);
         for (let idx = 0; idx < 15; idx++) {
           const bit = (fmtInfo >> (14 - idx)) & 1;
           const [r1, c1] = tlCoords[idx];
@@ -1270,7 +1253,7 @@
     }
 
     /* =========================================================================
-       3. PURE-JS OFFLINE QR DECODER (FALLBACK WHEN BarcodeDetector ABSENT)
+       3. PURE-JS OFFLINE QR DECODER (OPTIMIZED FOR iOS SAFARI)
        ========================================================================= */
     const FORMAT_LOOKUP = [];
     (() => {
@@ -1283,6 +1266,13 @@
             mask
           });
         }
+      }
+    })();
+
+    const VERSION_LOOKUP = [];
+    (() => {
+      for (let v = 7; v <= 40; v++) {
+        VERSION_LOOKUP.push({ ver: v, bits: computeVersionInfo(v) });
       }
     })();
 
@@ -1304,8 +1294,19 @@
       return best;
     }
 
+    function decodeVersionBits(raw18) {
+      let best = null, bestDist = 4;
+      for (const entry of VERSION_LOOKUP) {
+        const d = hammingDistance(raw18, entry.bits);
+        if (d < bestDist) {
+          bestDist = d;
+          best = entry.ver;
+        }
+      }
+      return best;
+    }
+
     function solveHomography(srcPts, dstPts) {
-      // Maps src (u, v) -> dst (x, y)
       const A = [];
       const b = [];
       for (let i = 0; i < 4; i++) {
@@ -1316,7 +1317,6 @@
         A.push([0, 0, 0, u, v, 1, -u * y, -v * y]);
         b.push(y);
       }
-      // Gaussian elimination
       const n = 8;
       for (let i = 0; i < n; i++) {
         let maxRow = i;
@@ -1347,7 +1347,7 @@
       return [(h[0] * u + h[1] * v + h[2]) / denom, (h[3] * u + h[4] * v + h[5]) / denom];
     }
 
-    function decodeQRFromImageData(imgData) {
+    function decodeQRFromImageData(imgData, thresholdFactor = 0.87) {
       const { width: w, height: h, data } = imgData;
       const total = w * h;
       const gray = new Uint8Array(total);
@@ -1355,7 +1355,7 @@
         gray[i] = (data[p] * 77 + data[p + 1] * 150 + data[p + 2] * 29) >> 8;
       }
 
-      // Bradley-Roth integral image adaptive thresholding (handles screen glare & uneven backlight)
+      // Bradley-Roth integral image adaptive thresholding
       const integral = new Uint32Array((w + 1) * (h + 1));
       for (let y = 0; y < h; y++) {
         let rowSum = 0;
@@ -1368,8 +1368,8 @@
         }
       }
 
-      const bin = new Uint8Array(total); // 1 = dark, 0 = light
-      const s = Math.max(12, (Math.min(w, h) >> 4));
+      const bin = new Uint8Array(total);
+      const s = Math.max(16, (Math.min(w, h) >> 3));
       const halfS = s >> 1;
       for (let y = 0; y < h; y++) {
         const y1 = Math.max(0, y - halfS);
@@ -1383,16 +1383,15 @@
                     - integral[y1 * (w + 1) + (x2 + 1)]
                     - integral[(y2 + 1) * (w + 1) + x1]
                     + integral[y1 * (w + 1) + x1];
-          bin[gRow + x] = (gray[gRow + x] * count < sum * 0.88) ? 1 : 0;
+          bin[gRow + x] = (gray[gRow + x] * count < sum * thresholdFactor) ? 1 : 0;
         }
       }
 
-      // Finder pattern run-length scanner (1:1:3:1:1)
       const checkRatio = (counts) => {
         const totalMod = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
         if (totalMod < 7) return false;
         const unit = totalMod / 7.0;
-        const tol = unit * 0.55;
+        const tol = unit * 0.6;
         return Math.abs(counts[0] - unit) < tol &&
                Math.abs(counts[1] - unit) < tol &&
                Math.abs(counts[2] - 3 * unit) < 3 * tol &&
@@ -1444,13 +1443,13 @@
         if (counts[4] > maxCount) return NaN;
 
         const tot = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
-        if (5 * Math.abs(tot - expectedTotal) >= expectedTotal) return NaN;
+        if (5 * Math.abs(tot - expectedTotal) >= 2 * expectedTotal) return NaN;
         if (!checkRatio(counts)) return NaN;
         return (x - counts[4] - counts[3] - counts[2] / 2.0);
       };
 
       const centers = [];
-      const rowStep = Math.max(2, Math.floor(h / 260));
+      const rowStep = Math.max(2, Math.floor(h / 320));
       for (let y = rowStep; y < h - rowStep; y += rowStep) {
         const counts = [0, 0, 0, 0, 0];
         let state = 0;
@@ -1466,14 +1465,14 @@
                 if (checkRatio(counts)) {
                   const tot = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
                   let cx = x - counts[4] - counts[3] - counts[2] / 2.0;
-                  const cy = crossCheckVertical(Math.round(cx), y, counts[2], tot);
+                  const cy = crossCheckVertical(Math.round(cx), y, counts[2] * 1.5, tot);
                   if (!Number.isNaN(cy)) {
-                    cx = crossCheckHorizontal(Math.round(cx), Math.round(cy), counts[2], tot);
+                    cx = crossCheckHorizontal(Math.round(cx), Math.round(cy), counts[2] * 1.5, tot);
                     if (!Number.isNaN(cx)) {
                       const modSize = tot / 7.0;
                       let merged = false;
                       for (const c of centers) {
-                        if (Math.hypot(c.x - cx, c.y - cy) < modSize * 1.5 && Math.abs(c.mod - modSize) < modSize * 0.4) {
+                        if (Math.hypot(c.x - cx, c.y - cy) < modSize * 1.6 && Math.abs(c.mod - modSize) < modSize * 0.45) {
                           c.x = (c.x * c.n + cx) / (c.n + 1);
                           c.y = (c.y * c.n + cy) / (c.n + 1);
                           c.mod = (c.mod * c.n + modSize) / (c.n + 1);
@@ -1499,11 +1498,13 @@
         }
       }
 
-      if (centers.length < 3) return null;
-      centers.sort((a, b) => b.n - a.n);
-      const top = centers.slice(0, 6);
+      if (centers.length < 3) {
+        return { text: null, corners: centers.length, stage: "finder" };
+      }
 
-      // Find best 3 finder centers forming an isosceles right triangle
+      centers.sort((a, b) => b.n - a.n);
+      const top = centers.slice(0, 7);
+
       let bestTriple = null, bestScore = Infinity;
       for (let i = 0; i < top.length; i++) {
         for (let j = i + 1; j < top.length; j++) {
@@ -1518,12 +1519,12 @@
               { hyp: d01, leg1: d02, leg2: d12, tl: pts[2], p1: pts[0], p2: pts[1] }
             ];
             for (const cand of pairs) {
-              if (cand.leg1 < 20 || cand.leg2 < 20) continue;
+              if (cand.leg1 < 25 || cand.leg2 < 25) continue;
               const legDiff = Math.abs(cand.leg1 - cand.leg2) / Math.max(cand.leg1, cand.leg2);
               const expectedHyp = Math.SQRT2 * ((cand.leg1 + cand.leg2) * 0.5);
               const hypDiff = Math.abs(cand.hyp - expectedHyp) / expectedHyp;
               const score = legDiff + hypDiff;
-              if (score < 0.28 && score < bestScore) {
+              if (score < 0.34 && score < bestScore) {
                 bestScore = score;
                 bestTriple = cand;
               }
@@ -1531,9 +1532,10 @@
           }
         }
       }
-      if (!bestTriple) return null;
+      if (!bestTriple) {
+        return { text: null, corners: centers.length, stage: "geometry" };
+      }
 
-      // Orient Top-Left, Top-Right, Bottom-Left via 2D cross product
       const { tl, p1, p2 } = bestTriple;
       const cross = (p1.x - tl.x) * (p2.y - tl.y) - (p1.y - tl.y) * (p2.x - tl.x);
       const tr = cross > 0 ? p1 : p2;
@@ -1543,16 +1545,45 @@
       const distTop = Math.hypot(tr.x - tl.x, tr.y - tl.y);
       const distLeft = Math.hypot(bl.x - tl.x, bl.y - tl.y);
       const estDim = Math.round(((distTop + distLeft) / (2 * avgMod)) + 7);
-      const estVer = Math.max(1, Math.min(40, Math.round((estDim - 17) / 4)));
+      let estVer = Math.max(1, Math.min(40, Math.round((estDim - 17) / 4)));
 
-      // Try candidate versions around estVer
-      const verCandidates = [estVer];
-      if (estVer > 1) verCandidates.push(estVer - 1);
-      if (estVer < 40) verCandidates.push(estVer + 1);
+      // Read 18-bit Version Information if estVer >= 6 using initial affine projection
+      const verCandidateSet = new Set([estVer]);
+      if (estVer >= 6) {
+        const provisionalDim = 4 * estVer + 17;
+        const affBRX = tr.x + (bl.x - tl.x);
+        const affBRY = tr.y + (bl.y - tl.y);
+        const H0 = solveHomography(
+          [[3.5, 3.5], [provisionalDim - 3.5, 3.5], [3.5, provisionalDim - 3.5], [provisionalDim - 3.5, provisionalDim - 3.5]],
+          [[tl.x, tl.y], [tr.x, tr.y], [bl.x, bl.y], [affBRX, affBRY]]
+        );
+        if (H0) {
+          let vBits1 = 0, vBits2 = 0;
+          for (let i = 17; i >= 0; i--) {
+            const r = Math.floor(i / 3);
+            const c = provisionalDim - 11 + (i % 3);
+            const [px1, py1] = projectPoint(H0, c + 0.5, r + 0.5);
+            const [px2, py2] = projectPoint(H0, r + 0.5, c + 0.5);
+            const b1 = (px1 >= 0 && px1 < w && py1 >= 0 && py1 < h) ? bin[Math.round(py1) * w + Math.round(px1)] : 0;
+            const b2 = (px2 >= 0 && px2 < w && py2 >= 0 && py2 < h) ? bin[Math.round(py2) * w + Math.round(px2)] : 0;
+            vBits1 = (vBits1 << 1) | b1;
+            vBits2 = (vBits2 << 1) | b2;
+          }
+          const exactVer = decodeVersionBits(vBits1) || decodeVersionBits(vBits2);
+          if (exactVer) {
+            estVer = exactVer;
+            verCandidateSet.clear();
+            verCandidateSet.add(exactVer);
+          }
+        }
+      }
+      if (verCandidateSet.size === 1 && estVer < 7) {
+        if (estVer > 1) verCandidateSet.add(estVer - 1);
+        if (estVer < 40) verCandidateSet.add(estVer + 1);
+      }
 
-      for (const ver of verCandidates) {
+      for (const ver of verCandidateSet) {
         const dim = 4 * ver + 17;
-        // Initial affine estimate for bottom-right alignment center (dim - 6.5, dim - 6.5)
         let brX = tr.x + (bl.x - tl.x);
         let brY = tr.y + (bl.y - tl.y);
         let srcBR = [dim - 3.5, dim - 3.5];
@@ -1562,23 +1593,22 @@
           const uRatio = (alignMod - 3.5) / (dim - 7);
           const guessX = tl.x + uRatio * (tr.x - tl.x) + uRatio * (bl.x - tl.x);
           const guessY = tl.y + uRatio * (tr.y - tl.y) + uRatio * (bl.y - tl.y);
-          const searchR = Math.max(8, Math.round(avgMod * 4.5));
+          const searchR = Math.max(10, Math.round(avgMod * 6.0));
           let bestAlign = null, bestAlignDist = Infinity;
+          const m1 = Math.max(2, Math.round(avgMod));
+          const m2 = Math.max(4, Math.round(avgMod * 2));
 
-          for (let sy = Math.max(2, Math.round(guessY - searchR)); sy <= Math.min(h - 3, Math.round(guessY + searchR)); sy++) {
-            for (let sx = Math.max(2, Math.round(guessX - searchR)); sx <= Math.min(w - 3, Math.round(guessX + searchR)); sx++) {
+          for (let sy = Math.max(m2, Math.round(guessY - searchR)); sy <= Math.min(h - 1 - m2, Math.round(guessY + searchR)); sy++) {
+            for (let sx = Math.max(m2, Math.round(guessX - searchR)); sx <= Math.min(w - 1 - m2, Math.round(guessX + searchR)); sx++) {
               if (bin[sy * w + sx] !== 1) continue;
-              // Check 1:1:1 dark center surrounded by light ring and dark outer ring
-              const m = Math.round(avgMod);
-              if (m >= 2 && sx - 2*m >= 0 && sx + 2*m < w && sy - 2*m >= 0 && sy + 2*m < h) {
-                if (bin[sy * w + (sx - m)] === 0 && bin[sy * w + (sx + m)] === 0 &&
-                    bin[(sy - m) * w + sx] === 0 && bin[(sy + m) * w + sx] === 0 &&
-                    bin[sy * w + (sx - 2*m)] === 1 && bin[sy * w + (sx + 2*m)] === 1) {
-                  const d = Math.hypot(sx - guessX, sy - guessY);
-                  if (d < bestAlignDist) {
-                    bestAlignDist = d;
-                    bestAlign = [sx + 0.5, sy + 0.5];
-                  }
+              if (bin[sy * w + (sx - m1)] === 0 && bin[sy * w + (sx + m1)] === 0 &&
+                  bin[(sy - m1) * w + sx] === 0 && bin[(sy + m1) * w + sx] === 0 &&
+                  bin[sy * w + (sx - m2)] === 1 && bin[sy * w + (sx + m2)] === 1 &&
+                  bin[(sy - m2) * w + sx] === 1 && bin[(sy + m2) * w + sx] === 1) {
+                const d = Math.hypot(sx - guessX, sy - guessY);
+                if (d < bestAlignDist) {
+                  bestAlignDist = d;
+                  bestAlign = [sx + 0.5, sy + 0.5];
                 }
               }
             }
@@ -1598,8 +1628,8 @@
 
         const sampleModule = (r, c) => {
           let darkVotes = 0;
-          for (const dy of [-0.22, 0, 0.22]) {
-            for (const dx of [-0.22, 0, 0.22]) {
+          for (const dy of [-0.2, 0, 0.2]) {
+            for (const dx of [-0.2, 0, 0.2]) {
               const [px, py] = projectPoint(H, c + 0.5 + dx, r + 0.5 + dy);
               const ix = Math.round(px), iy = Math.round(py);
               if (ix >= 0 && ix < w && iy >= 0 && iy < h) darkVotes += bin[iy * w + ix];
@@ -1608,7 +1638,6 @@
           return darkVotes >= 5 ? 1 : 0;
         };
 
-        // Read format info (top-left & split copy)
         const tlCoords = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
         const spCoords = [[dim-1,8],[dim-2,8],[dim-3,8],[dim-4,8],[dim-5,8],[dim-6,8],[dim-7,8],
                           [8,dim-8],[8,dim-7],[8,dim-6],[8,dim-5],[8,dim-4],[8,dim-3],[8,dim-2],[8,dim-1]];
@@ -1618,9 +1647,8 @@
           fmt2 = (fmt2 << 1) | sampleModule(spCoords[i][0], spCoords[i][1]);
         }
         const fmt = decodeFormatBits(fmt1) || decodeFormatBits(fmt2);
-        if (!fmt || (fmt.ecLevel !== 1 && fmt.ecLevel !== 0)) continue; // Support Level M (1) and L (0)
+        if (!fmt || (fmt.ecLevel !== 1 && fmt.ecLevel !== 0)) continue;
 
-        // Build function mask to skip non-data modules
         const isFunc = Array.from({ length: dim }, () => new Uint8Array(dim));
         const markFunc = (r, c) => { if (r >= 0 && r < dim && c >= 0 && c < dim) isFunc[r][c] = 1; };
         for (const [fr, fc] of [[0, 0], [0, dim - 7], [dim - 7, 0]]) {
@@ -1645,7 +1673,6 @@
           }
         }
 
-        // Extract unmasked bits in zig-zag order
         const rawBits = [];
         let upward = true, col = dim - 1;
         while (col > 0) {
@@ -1676,7 +1703,6 @@
           cw[i] = b;
         }
 
-        // De-interleave blocks & run Reed-Solomon error correction
         const totalBlocks = g1b + g2b;
         const blocksData = Array.from({ length: totalBlocks }, (_, idx) => new Uint8Array(idx < g1b ? g1d : g2d));
         const blocksEc = Array.from({ length: totalBlocks }, () => new Uint8Array(ec));
@@ -1706,7 +1732,6 @@
         }
         if (!rsOk) continue;
 
-        // Parse Byte-mode bit stream
         const dataBits = [];
         for (const byte of recovered) {
           for (let b = 7; b >= 0; b--) dataBits.push((byte >> b) & 1);
@@ -1723,8 +1748,8 @@
         let parseOk = true;
         while (bitPos + 4 <= dataBits.length) {
           const mode = readBits(4);
-          if (mode === 0) break; // Terminator
-          if (mode === 0b0100) { // Byte mode
+          if (mode === 0) break;
+          if (mode === 0b0100) {
             const countLen = ver <= 9 ? 8 : 16;
             const charCount = readBits(countLen);
             if (charCount < 0 || bitPos + charCount * 8 > dataBits.length) { parseOk = false; break; }
@@ -1736,13 +1761,17 @@
         }
         if (parseOk && outBytes.length > 0) {
           try {
-            return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(outBytes));
+            return {
+              text: new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(outBytes)),
+              corners: 3,
+              stage: "ok"
+            };
           } catch (_) {
             continue;
           }
         }
       }
-      return null;
+      return { text: null, corners: 3, stage: `v${estVer}-ecc` };
     }
 
     /* =========================================================================
@@ -1793,15 +1822,13 @@
           if (gzBytes.length < rawBytes.length) {
             return { flag: "G", bytes: gzBytes, rawLen: rawBytes.length };
           }
-        } catch (_) { /* fallback to raw */ }
+        } catch (_) {}
       }
       return { flag: "R", bytes: rawBytes, rawLen: rawBytes.length };
     }
 
     async function decompressUtf8(flag, bytes) {
-      if (flag === "R") {
-        return new TextDecoder("utf-8").decode(bytes);
-      }
+      if (flag === "R") return new TextDecoder("utf-8").decode(bytes);
       if (flag === "G") {
         if (typeof DecompressionStream !== "undefined") {
           const ds = new DecompressionStream("gzip");
@@ -1848,7 +1875,7 @@
             wakeLockBadge.innerHTML = '<span class="dot"></span>Wake Lock: Idle';
           });
         }
-      } catch (_) { /* ignore if low battery or unsupported */ }
+      } catch (_) {}
     }
 
     async function releaseWakeLock() {
@@ -1934,7 +1961,7 @@
        7. SENDER MODE CONTROLLER
        ========================================================================= */
     const senderState = {
-      density: "compact", // compact = 820 chars, large = 380 chars
+      density: "compact",
       intervalSec: 10.0,
       frames: [],
       qrCache: [],
@@ -2068,9 +2095,7 @@
 
       if (elapsedSec >= senderState.intervalSec) {
         const nextIdx = senderState.currentIdx + 1;
-        if (nextIdx >= senderState.frames.length) {
-          senderState.loopCount++;
-        }
+        if (nextIdx >= senderState.frames.length) senderState.loopCount++;
         displaySenderFrame(nextIdx);
       }
       senderState.rafId = requestAnimationFrame(tickSenderLoop);
@@ -2164,9 +2189,7 @@
       if (!total) return;
       const input = prompt(`Enter frame number to jump to (1 to ${total}):`, String(senderState.currentIdx + 1));
       const num = parseInt(input, 10);
-      if (num >= 1 && num <= total) {
-        displaySenderFrame(num - 1);
-      }
+      if (num >= 1 && num <= total) displaySenderFrame(num - 1);
     });
 
     /* =========================================================================
@@ -2180,6 +2203,7 @@
       detector: null,
       rafId: null,
       lastScanTime: 0,
+      scanCycle: 0,
       sessionId: null,
       compFlag: "G",
       totalChunks: 0,
@@ -2276,13 +2300,12 @@
     }
 
     async function handleDecodedString(rawText) {
-      if (!rawText || !rawText.startsWith("QB1|")) return;
-      // Format: QB1|<sid>|<comp>|<idx>/<total>|<crc32>|<base64_chunk>
+      if (!rawText || !rawText.startsWith("QB1|")) return false;
       const p1 = rawText.indexOf("|", 4);
       const p2 = rawText.indexOf("|", p1 + 1);
       const p3 = rawText.indexOf("|", p2 + 1);
       const p4 = rawText.indexOf("|", p3 + 1);
-      if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) return;
+      if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) return false;
 
       const sid = rawText.slice(4, p1);
       const comp = rawText.slice(p1 + 1, p2);
@@ -2291,19 +2314,17 @@
       const payload = rawText.slice(p4 + 1);
 
       const slash = frac.indexOf("/");
-      if (slash < 0) return;
+      if (slash < 0) return false;
       const idx = parseInt(frac.slice(0, slash), 10);
       const total = parseInt(frac.slice(slash + 1), 10);
-      if (!idx || !total || idx < 1 || idx > total) return;
+      if (!idx || !total || idx < 1 || idx > total) return false;
 
-      // Verify CRC32 integrity
       const expectedCrc = crc32Hex(`${sid}|${comp}|${idx}/${total}|${payload}`);
       if (crc !== expectedCrc) {
         scanStatus.textContent = `⚠️ Checksum mismatch on frame #${idx} — retrying…`;
-        return;
+        return false;
       }
 
-      // Detect new session ID and reset buffer cleanly
       if (readerState.sessionId !== sid || readerState.totalChunks !== total) {
         readerState.sessionId = sid;
         readerState.compFlag = comp;
@@ -2315,11 +2336,10 @@
       }
 
       if (readerState.chunks.has(idx)) {
-        scanStatus.textContent = `✓ Frame #${idx}/${total} already captured (${readerState.chunks.size}/${total})`;
-        return;
+        scanStatus.textContent = `✓ Frame #${idx}/${total} captured (${readerState.chunks.size}/${total})`;
+        return true;
       }
 
-      // New valid chunk!
       readerState.chunks.set(idx, payload);
       playTone("chunk");
       scanReticle.classList.add("flash");
@@ -2334,10 +2354,10 @@
 
       scanStatus.textContent = `✨ Captured Frame #${idx}/${total}! (${readerState.chunks.size}/${total})`;
 
-      // Check completion
       if (readerState.chunks.size === total) {
         await finalizeTransfer();
       }
+      return true;
     }
 
     async function finalizeTransfer() {
@@ -2373,31 +2393,46 @@
         const vw = readerVideo.videoWidth;
         const vh = readerVideo.videoHeight;
         if (vw > 0 && vh > 0) {
-          // 1. Try hardware BarcodeDetector if supported
+          // Crop tightly to the central reticle square so every QR module gets maximum pixels
+          const minSide = Math.min(vw, vh);
+          const cropSize = Math.round(minSide * 0.86);
+          const sx = Math.round((vw - cropSize) / 2);
+          const sy = Math.round((vh - cropSize) / 2);
+          const targetDim = Math.min(1080, cropSize);
+
+          scanCanvas.width = targetDim;
+          scanCanvas.height = targetDim;
+          const ctx = scanCanvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(readerVideo, sx, sy, cropSize, cropSize, 0, 0, targetDim, targetDim);
+
+          let handled = false;
           if (readerState.detector) {
             try {
-              const codes = await readerState.detector.detect(readerVideo);
+              const codes = await readerState.detector.detect(scanCanvas);
               if (codes && codes.length > 0 && codes[0].rawValue) {
-                await handleDecodedString(codes[0].rawValue);
+                handled = await handleDecodedString(codes[0].rawValue);
               }
             } catch (_) {
-              readerState.detector = null; // Fallback to Pure-JS decoder
+              readerState.detector = null;
             }
           }
-          // 2. Pure-JS Offline QR Decoder fallback (iOS Safari / Firefox / etc.)
-          if (!readerState.detector && readerState.scanning) {
-            const maxDim = 760;
-            const scale = Math.min(1, maxDim / Math.max(vw, vh));
-            const cw = Math.round(vw * scale);
-            const ch = Math.round(vh * scale);
-            scanCanvas.width = cw;
-            scanCanvas.height = ch;
-            const ctx = scanCanvas.getContext("2d", { willReadFrequently: true });
-            ctx.drawImage(readerVideo, 0, 0, cw, ch);
-            const imgData = ctx.getImageData(0, 0, cw, ch);
-            const decoded = decodeQRFromImageData(imgData);
-            if (decoded) {
-              await handleDecodedString(decoded);
+
+          if (!handled && readerState.scanning) {
+            const imgData = ctx.getImageData(0, 0, targetDim, targetDim);
+            // Cycle threshold multipliers across frames to cut through screen glare/gamma
+            const thresholds = [0.87, 0.80, 0.93];
+            const tf = thresholds[readerState.scanCycle % thresholds.length];
+            readerState.scanCycle++;
+
+            const res = decodeQRFromImageData(imgData, tf);
+            if (res && res.text) {
+              await handleDecodedString(res.text);
+            } else if (res && readerState.chunks.size === 0) {
+              if (res.corners >= 3) {
+                scanStatus.textContent = `Scanning… QR locked (${res.stage}), hold steady`;
+              } else if (res.corners > 0) {
+                scanStatus.textContent = `Scanning… (${res.corners}/3 corners visible)`;
+              }
             }
           }
         }
@@ -2409,7 +2444,7 @@
 
     async function startCameraScan() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Camera API unavailable. Make sure you opened this page over HTTPS (e.g., Netlify Drop or GitHub Pages).");
+        alert("Camera API unavailable. Make sure you opened this page over HTTPS.");
         return;
       }
       stopCameraScan();
@@ -2417,8 +2452,8 @@
       const constraints = {
         audio: false,
         video: selectedDeviceId
-          ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 960 } }
-          : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 960 } }
+          ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+          : { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
       };
 
       try {
@@ -2428,13 +2463,11 @@
         readerVideo.srcObject = stream;
         await readerVideo.play();
 
-        // Refresh camera labels now that permission is granted
         await populateCameras();
         if (readerState.videoTrack && readerState.videoTrack.getSettings().deviceId) {
           cameraSelect.value = readerState.videoTrack.getSettings().deviceId;
         }
 
-        // Check torch capability
         btnTorchToggle.classList.add("hidden");
         readerState.torchOn = false;
         if (readerState.videoTrack && readerState.videoTrack.getCapabilities) {
@@ -2448,11 +2481,11 @@
         readerState.scanning = true;
         btnStartScan.classList.add("hidden");
         btnStopScan.classList.remove("hidden");
-        scanStatus.textContent = "Scanning… point camera steadily at QR code";
+        scanStatus.textContent = "Scanning… point camera at QR code";
         requestWakeLock();
         readerState.rafId = requestAnimationFrame(scanFrameLoop);
       } catch (err) {
-        alert("Could not start camera: " + err.message + "\n\nTip: On iPhone/iPad, camera access requires opening the page via HTTPS.");
+        alert("Could not start camera: " + err.message);
       }
     }
 
