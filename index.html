@@ -1,0 +1,2536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>QRBridge — Offline Air-Gapped Markdown & Text Transfer</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --surface: #131a26;
+      --surface-2: #1a2333;
+      --border: #263348;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.14);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-shell {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px 16px 48px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #38bdf8, #10b981);
+      display: grid;
+      place-items: center;
+      color: #06101c;
+      font-weight: 800;
+      font-family: var(--mono);
+      font-size: 16px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge.active {
+      color: var(--success);
+      border-color: rgba(16, 185, 129, 0.4);
+      background: var(--success-bg);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Mode Switcher */
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: var(--surface);
+      padding: 6px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    .mode-tab {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .mode-tab.active {
+      background: var(--primary);
+      color: #06101c;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.25);
+    }
+
+    .mode-panel { display: none; }
+    .mode-panel.active { display: block; }
+
+    /* Cards & Controls */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button.btn, label.btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    button.btn:hover:not(:disabled), label.btn:hover {
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    button.btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    button.btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #06101c;
+      font-weight: 700;
+    }
+
+    button.btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      color: #06101c;
+    }
+
+    button.btn-success {
+      background: var(--success);
+      border-color: var(--success);
+      color: #051b11;
+      font-weight: 700;
+    }
+
+    button.btn-danger {
+      background: rgba(239, 68, 68, 0.16);
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #fca5a5;
+    }
+
+    textarea.md-input {
+      width: 100%;
+      min-height: 170px;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+    }
+
+    textarea.md-input:focus {
+      border-color: var(--primary);
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* Controls Grid */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .control-group {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .seg-btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .seg-btn.active {
+      background: rgba(56, 189, 248, 0.16);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    select.select-input, input.text-input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-family: var(--sans);
+      font-size: 13px;
+      outline: none;
+    }
+
+    /* QR Stage */
+    .qr-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 8px 8px;
+    }
+
+    .qr-hud {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .qr-hud span {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 5px 11px;
+      border-radius: 8px;
+    }
+
+    /* Pure white high-contrast QR container to prevent glare & contrast loss */
+    .qr-card-white {
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .qr-card-white canvas {
+      display: block;
+      max-width: min(76vw, 440px);
+      max-height: min(76vw, 440px);
+      width: auto;
+      height: auto;
+      image-rendering: pixelated;
+    }
+
+    .qr-frame-caption {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.04em;
+    }
+
+    .timer-bar-wrap {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+    }
+
+    .timer-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #0ea5e9;
+      transition: width 0.08s linear;
+    }
+
+    .playback-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    /* Reader Viewfinder */
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #05080f;
+      border: 1px solid var(--border);
+      aspect-ratio: 4 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .reticle {
+      position: absolute;
+      inset: 12%;
+      border: 2px dashed rgba(56, 189, 248, 0.55);
+      border-radius: 16px;
+      pointer-events: none;
+      box-shadow: 0 0 0 9999px rgba(5, 8, 15, 0.28);
+      transition: border-color 0.15s ease;
+    }
+
+    .reticle.flash {
+      border-color: #10b981;
+      border-style: solid;
+    }
+
+    .scan-pill {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(11, 15, 23, 0.86);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 999px;
+      white-space: nowrap;
+      max-width: 92%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Progress & Chunk Grid */
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      background: var(--bg);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #10b981);
+      transition: width 0.2s ease;
+    }
+
+    .chunk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+      gap: 6px;
+    }
+
+    .chunk-cell {
+      aspect-ratio: 1;
+      border-radius: 7px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      transition: all 0.18s ease;
+    }
+
+    .chunk-cell.done {
+      background: var(--success-bg);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .chunk-cell.just-scanned {
+      transform: scale(1.12);
+      background: var(--success);
+      color: #051b11;
+    }
+
+    /* Completion Screen */
+    .complete-banner {
+      background: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .complete-banner h3 {
+      margin: 0 0 6px;
+      color: var(--success);
+      font-size: 17px;
+    }
+
+    .complete-banner p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">QR</div>
+        <div>
+          <h1>QRBridge Air-Gap Transfer</h1>
+          <p>100% Offline Screen-to-Camera Markdown &amp; Text Transfer</p>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge active"><span class="dot"></span>Offline Ready</span>
+        <span class="badge" id="wakeLockBadge"><span class="dot"></span>Wake Lock: Idle</span>
+      </div>
+    </header>
+
+    <div class="mode-tabs" role="tablist">
+      <button class="mode-tab active" id="tabSender" role="tab" aria-selected="true">📤 Sender Mode</button>
+      <button class="mode-tab" id="tabReader" role="tab" aria-selected="false">📷 Reader Mode</button>
+    </div>
+
+    <!-- ==================== SENDER MODE ==================== -->
+    <section class="mode-panel active" id="panelSender">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">1. Markdown / Text Source</h2>
+          <div class="btn-row">
+            <label class="btn" for="fileInput">📂 Load .md / .txt</label>
+            <input type="file" id="fileInput" accept=".md,.markdown,.txt,text/markdown,text/plain" class="hidden" />
+            <button class="btn" id="btnSample">✨ Load 5 KB Sample .md</button>
+            <button class="btn" id="btnClearSender">Clear</button>
+          </div>
+        </div>
+
+        <textarea class="md-input" id="senderText" placeholder="Paste your Markdown or text here, or load a .md / .txt file above..."></textarea>
+
+        <div class="stats-bar">
+          <div class="stat-box">
+            <div class="stat-label">Original Size</div>
+            <div class="stat-val" id="statOrig">0 B</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Compressed Payload</div>
+            <div class="stat-val" id="statComp">0 B (—)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Total QR Frames</div>
+            <div class="stat-val" id="statFrames">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">1 Loop Duration</div>
+            <div class="stat-val" id="statEta">0s</div>
+          </div>
+        </div>
+
+        <div class="controls-grid">
+          <div class="control-group">
+            <label><span>QR Density Mode</span><span id="densityHint">~820 chars/QR</span></label>
+            <div class="segmented">
+              <button class="seg-btn active" id="btnDensityCompact" data-density="compact">Compact (Fewer QRs)</button>
+              <button class="seg-btn" id="btnDensityLarge" data-density="large">Large Blocks (Anti-Glare)</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="intervalSlider"><span>Display Interval per QR</span><span id="intervalLabel">10.0s</span></label>
+            <input type="range" id="intervalSlider" min="0.5" max="10" step="0.5" value="10" />
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top: 14px;">
+          <button class="btn btn-primary" id="btnGenerate">⚡ Generate QR Sequence</button>
+          <button class="btn btn-success" id="btnPlayPause" disabled>▶ Start Loop</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="senderStageCard">
+        <div class="card-header">
+          <h2 class="card-title">2. Optical Broadcast Stream (Continuous Loop)</h2>
+          <div class="btn-row">
+            <button class="btn" id="btnPrevFrame">⏮ Prev</button>
+            <button class="btn" id="btnNextFrame">Next ⏭</button>
+          </div>
+        </div>
+
+        <div class="qr-stage">
+          <div class="qr-hud">
+            <span id="hudFrame">Frame 1 / 1</span>
+            <span id="hudSession">Session: ----</span>
+            <span id="hudLoop">Loop #1</span>
+          </div>
+
+          <div class="qr-card-white">
+            <canvas id="qrCanvas"></canvas>
+            <div class="qr-frame-caption" id="qrCaption">CHUNK 1 OF 1</div>
+            <div class="timer-bar-wrap">
+              <div class="timer-bar-fill" id="timerBar"></div>
+            </div>
+          </div>
+
+          <div class="playback-bar">
+            <button class="btn btn-success" id="btnPlayPauseStage">⏸ Pause</button>
+            <button class="btn" id="btnJumpMissing" title="Jump directly to a specific frame number">🔢 Jump to Frame…</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== READER MODE ==================== -->
+    <section class="mode-panel" id="panelReader">
+      <div class="card" id="readerScannerCard">
+        <div class="card-header">
+          <h2 class="card-title">Camera QR Stream Receiver</h2>
+          <div class="btn-row">
+            <button class="btn" id="btnMuteToggle">🔊 Beep: On</button>
+            <button class="btn hidden" id="btnTorchToggle">🔦 Torch: Off</button>
+            <button class="btn btn-danger" id="btnResetReader">Reset</button>
+          </div>
+        </div>
+
+        <div class="controls-grid" style="margin-top: 0; margin-bottom: 14px;">
+          <div class="control-group">
+            <label for="cameraSelect"><span>Camera Lens (Switch if Blurry)</span></label>
+            <select class="select-input" id="cameraSelect">
+              <option value="">Default Rear Camera (Auto)</option>
+            </select>
+          </div>
+          <div class="control-group" style="display: flex; flex-direction: column; justify-content: flex-end;">
+            <button class="btn btn-primary" id="btnStartScan" style="width: 100%; padding: 11px;">📷 Start Camera Scan</button>
+            <button class="btn btn-danger hidden" id="btnStopScan" style="width: 100%; padding: 11px;">⏹ Stop Camera</button>
+          </div>
+        </div>
+
+        <div class="video-wrap">
+          <video id="readerVideo" playsinline muted autoplay></video>
+          <div class="reticle" id="scanReticle"></div>
+          <div class="scan-pill" id="scanStatus">Tap "Start Camera Scan" and point at QR codes</div>
+        </div>
+        <canvas id="scanCanvas" class="hidden"></canvas>
+      </div>
+
+      <div class="card" id="readerProgressCard">
+        <div class="progress-header">
+          <span id="progressText">Waiting for first QR frame…</span>
+          <span id="progressPct" style="font-family: var(--mono); color: var(--primary);">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="chunk-grid" id="chunkGrid"></div>
+      </div>
+
+      <div class="card hidden" id="readerCompleteCard">
+        <div class="complete-banner">
+          <h3>✅ Transfer Complete &amp; Checksum Verified!</h3>
+          <p id="completeStats">All chunks received and reassembled cleanly. Camera stopped automatically.</p>
+        </div>
+
+        <div class="control-group" style="margin-bottom: 12px;">
+          <label for="downloadFilename"><span>Output Markdown Filename</span></label>
+          <input type="text" class="text-input" id="downloadFilename" value="transferred-document.md" />
+        </div>
+
+        <div class="btn-row" style="margin-bottom: 14px;">
+          <button class="btn btn-success" id="btnDownloadMd" style="flex: 1; padding: 12px;">⬇️ Download .md File</button>
+          <button class="btn btn-primary" id="btnCopyMd">📋 Copy Text</button>
+          <button class="btn" id="btnScanAnother">🔄 Scan Another</button>
+        </div>
+
+        <label style="display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px;">Reconstructed Content Preview</label>
+        <textarea class="md-input" id="receivedPreview" readonly></textarea>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* =========================================================================
+       1. GF(256) & REED-SOLOMON CODEC (ENCODER + DECODER)
+       ========================================================================= */
+    const GF_EXP = new Uint8Array(512);
+    const GF_LOG = new Uint8Array(256);
+    (() => {
+      let x = 1;
+      for (let i = 0; i < 255; i++) {
+        GF_EXP[i] = x;
+        GF_LOG[x] = i;
+        x <<= 1;
+        if (x & 0x100) x ^= 0x11d;
+      }
+      for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+    })();
+
+    function gfMul(a, b) {
+      return (a === 0 || b === 0) ? 0 : GF_EXP[GF_LOG[a] + GF_LOG[b]];
+    }
+
+    function gfDiv(a, b) {
+      if (a === 0) return 0;
+      return GF_EXP[(GF_LOG[a] + 255 - GF_LOG[b]) % 255];
+    }
+
+    function rsGenPoly(ecLen) {
+      let g = [1];
+      for (let i = 0; i < ecLen; i++) {
+        const ng = new Array(g.length + 1).fill(0);
+        const root = GF_EXP[i];
+        for (let j = 0; j < g.length; j++) {
+          ng[j] ^= g[j];
+          ng[j + 1] ^= gfMul(g[j], root);
+        }
+        g = ng;
+      }
+      return g;
+    }
+
+    function rsEncode(data, ecLen) {
+      const gen = rsGenPoly(ecLen);
+      const res = new Uint8Array(data.length + ecLen);
+      res.set(data);
+      for (let i = 0; i < data.length; i++) {
+        const coef = res[i];
+        if (coef !== 0) {
+          for (let j = 1; j < gen.length; j++) {
+            res[i + j] ^= gfMul(gen[j], coef);
+          }
+        }
+      }
+      return res.slice(data.length);
+    }
+
+    function rsDecode(codewords, ecLen) {
+      const n = codewords.length;
+      const msg = Uint8Array.from(codewords);
+      // Compute syndromes
+      const synd = new Uint8Array(ecLen);
+      let hasError = false;
+      for (let i = 0; i < ecLen; i++) {
+        let s = 0;
+        const root = GF_EXP[i];
+        for (let j = 0; j < n; j++) {
+          s = gfMul(s, root) ^ msg[j];
+        }
+        synd[i] = s;
+        if (s !== 0) hasError = true;
+      }
+      if (!hasError) return msg.slice(0, n - ecLen);
+
+      // Berlekamp-Massey
+      let errLoc = [1];
+      let oldLoc = [1];
+      for (let i = 0; i < ecLen; i++) {
+        let delta = synd[i];
+        for (let j = 1; j < errLoc.length; j++) {
+          delta ^= gfMul(errLoc[errLoc.length - 1 - j], synd[i - j]);
+        }
+        oldLoc.push(0);
+        if (delta !== 0) {
+          if (oldLoc.length > errLoc.length) {
+            const newLoc = oldLoc.map(v => gfMul(v, delta));
+            oldLoc = errLoc.map(v => gfDiv(v, delta));
+            errLoc = newLoc;
+          }
+          for (let j = 0; j < oldLoc.length; j++) {
+            errLoc[errLoc.length - 1 - j] ^= gfMul(oldLoc[oldLoc.length - 1 - j], delta);
+          }
+        }
+      }
+
+      const errs = errLoc.length - 1;
+      if (errs * 2 > ecLen) return null;
+
+      // Chien Search
+      const errPos = [];
+      for (let i = 0; i < n; i++) {
+        let sum = 0;
+        const xInv = GF_EXP[(255 - i) % 255];
+        for (let j = 0; j < errLoc.length; j++) {
+          sum = gfMul(sum, xInv) ^ errLoc[j];
+        }
+        if (sum === 0) errPos.push(n - 1 - i);
+      }
+      if (errPos.length !== errs) return null;
+
+      // Forney algorithm
+      const syndRev = Array.from(synd).reverse();
+      // Compute errEval = (synd * errLoc) mod x^ecLen
+      const prod = new Array(syndRev.length + errLoc.length - 1).fill(0);
+      for (let i = 0; i < syndRev.length; i++) {
+        for (let j = 0; j < errLoc.length; j++) {
+          prod[i + j] ^= gfMul(syndRev[i], errLoc[j]);
+        }
+      }
+      const errEval = prod.slice(prod.length - ecLen);
+
+      for (let i = 0; i < errPos.length; i++) {
+        const pos = errPos[i];
+        const xInv = GF_EXP[(n - 1 - pos) % 255];
+        const x = GF_EXP[(255 - ((n - 1 - pos) % 255)) % 255];
+
+        let num = 0;
+        for (let j = 0; j < errEval.length; j++) {
+          num = gfMul(num, xInv) ^ errEval[j];
+        }
+        num = gfMul(num, x);
+
+        let den = 0;
+        for (let j = errLoc.length - 2; j >= 0; j -= 2) {
+          // Derivative of errLoc in GF(2^m) keeps odd powers
+        }
+        const deg = errLoc.length - 1;
+        for (let p = 1; p <= deg; p += 2) {
+          const coef = errLoc[deg - p];
+          let term = coef;
+          for (let k = 0; k < p - 1; k++) term = gfMul(term, xInv);
+          den ^= term;
+        }
+        if (den === 0) return null;
+        msg[pos] ^= gfDiv(num, den);
+      }
+
+      // Re-verify syndromes
+      for (let i = 0; i < ecLen; i++) {
+        let s = 0;
+        const root = GF_EXP[i];
+        for (let j = 0; j < n; j++) s = gfMul(s, root) ^ msg[j];
+        if (s !== 0) return null;
+      }
+      return msg.slice(0, n - ecLen);
+    }
+
+    /* =========================================================================
+       2. ISO/IEC 18004 QR TABLES (VERSIONS 1..40, ERROR CORRECTION LEVEL M & L)
+       ========================================================================= */
+    // [totalCw, ecPerBlock, g1Blocks, g1DataCw, g2Blocks, g2DataCw]
+    const QR_M_TABLE = [
+      null,
+      [26, 10, 1, 16, 0, 0], [44, 16, 1, 28, 0, 0], [70, 26, 1, 44, 0, 0], [100, 18, 2, 32, 0, 0],
+      [134, 24, 2, 43, 0, 0], [172, 16, 4, 27, 0, 0], [196, 18, 4, 31, 0, 0], [242, 22, 2, 38, 2, 39],
+      [292, 22, 3, 36, 2, 37], [346, 26, 4, 43, 1, 44], [404, 30, 1, 50, 4, 51], [466, 22, 6, 36, 2, 37],
+      [532, 22, 8, 37, 1, 38], [581, 24, 4, 40, 5, 41], [655, 24, 5, 41, 5, 42], [733, 28, 7, 45, 3, 46],
+      [815, 28, 10, 46, 1, 47], [901, 26, 9, 43, 4, 44], [991, 26, 3, 44, 11, 45], [1085, 26, 3, 41, 13, 42],
+      [1156, 26, 17, 42, 0, 0], [1258, 28, 17, 46, 0, 0], [1364, 28, 4, 47, 14, 48], [1474, 28, 6, 45, 14, 46],
+      [1588, 28, 8, 47, 13, 48], [1706, 28, 19, 46, 4, 47], [1828, 28, 22, 45, 3, 46], [1921, 28, 3, 45, 23, 46],
+      [2051, 28, 21, 45, 7, 46], [2185, 28, 19, 47, 10, 48], [2323, 28, 2, 46, 29, 47], [2465, 28, 10, 46, 23, 47],
+      [2611, 28, 14, 46, 21, 47], [2761, 28, 14, 46, 23, 47], [2876, 28, 12, 47, 26, 48], [3034, 28, 6, 47, 34, 48],
+      [3196, 28, 29, 46, 14, 47], [3362, 28, 13, 46, 32, 47], [3532, 28, 40, 47, 7, 48], [3706, 28, 18, 47, 31, 48]
+    ];
+
+    const QR_L_TABLE = [
+      null,
+      [26, 7, 1, 19, 0, 0], [44, 10, 1, 34, 0, 0], [70, 15, 1, 55, 0, 0], [100, 20, 1, 80, 0, 0],
+      [134, 26, 1, 108, 0, 0], [172, 18, 2, 68, 0, 0], [196, 20, 2, 78, 0, 0], [242, 24, 2, 97, 0, 0],
+      [292, 30, 2, 116, 0, 0], [346, 18, 2, 68, 2, 69], [404, 20, 4, 81, 0, 0], [466, 24, 2, 92, 2, 93],
+      [532, 26, 4, 107, 0, 0], [581, 30, 3, 115, 1, 116], [655, 22, 5, 87, 1, 88], [733, 24, 5, 98, 1, 99],
+      [815, 28, 1, 107, 5, 108], [901, 30, 5, 120, 1, 121], [991, 28, 3, 113, 4, 114], [1085, 28, 3, 107, 5, 108],
+      [1156, 28, 4, 116, 4, 117], [1258, 28, 2, 111, 7, 112], [1364, 30, 4, 121, 5, 122], [1474, 30, 6, 117, 4, 118],
+      [1588, 26, 8, 106, 4, 107], [1706, 28, 10, 114, 2, 115], [1828, 30, 8, 122, 4, 123], [1921, 30, 3, 117, 10, 118],
+      [2051, 30, 7, 116, 7, 117], [2185, 30, 5, 115, 10, 116], [2323, 30, 13, 115, 3, 116], [2465, 30, 17, 115, 0, 0],
+      [2611, 30, 17, 115, 1, 116], [2761, 30, 13, 115, 6, 116], [2876, 30, 12, 121, 7, 122], [3034, 30, 6, 121, 14, 122],
+      [3196, 30, 17, 122, 4, 123], [3362, 30, 4, 122, 18, 123], [3532, 30, 20, 117, 4, 118], [3706, 30, 19, 118, 6, 119]
+    ];
+
+    const ALIGN_COORD = [
+      [], [],
+      [6, 18], [6, 22], [6, 26], [6, 30], [6, 34],
+      [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50], [6, 30, 54], [6, 32, 58], [6, 34, 62],
+      [6, 26, 46, 66], [6, 26, 48, 70], [6, 26, 50, 74], [6, 30, 54, 78], [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90],
+      [6, 28, 50, 72, 94], [6, 26, 50, 74, 98], [6, 30, 54, 78, 102], [6, 28, 54, 80, 106], [6, 32, 58, 84, 110], [6, 30, 58, 86, 114], [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122], [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130], [6, 30, 56, 82, 108, 134], [6, 34, 60, 86, 112, 138], [6, 30, 58, 86, 114, 142], [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150], [6, 24, 50, 76, 102, 128, 154], [6, 28, 54, 80, 106, 132, 158], [6, 32, 58, 84, 110, 136, 162], [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170]
+    ];
+
+    function maskBit(maskId, r, c) {
+      switch (maskId) {
+        case 0: return ((r + c) & 1) === 0;
+        case 1: return (r & 1) === 0;
+        case 2: return (c % 3) === 0;
+        case 3: return ((r + c) % 3) === 0;
+        case 4: return (((r >> 1) + Math.floor(c / 3)) & 1) === 0;
+        case 5: return ((r * c) & 1) + ((r * c) % 3) === 0;
+        case 6: return ((((r * c) & 1) + ((r * c) % 3)) & 1) === 0;
+        case 7: return ((((r + c) & 1) + ((r * c) % 3)) & 1) === 0;
+        default: return false;
+      }
+    }
+
+    function computeFormatInfo(ecIndicator, maskId) {
+      const fmtData = (ecIndicator << 3) | maskId;
+      let fBits = fmtData << 10;
+      for (let i = 4; i >= 0; i--) {
+        if ((fBits >> (i + 10)) & 1) fBits ^= (0x537 << i);
+      }
+      return ((fmtData << 10) | fBits) ^ 0x5412;
+    }
+
+    function computeVersionInfo(ver) {
+      let vBits = ver << 12;
+      for (let i = 5; i >= 0; i--) {
+        if ((vBits >> (i + 12)) & 1) vBits ^= (0x1f25 << i);
+      }
+      return (ver << 12) | vBits;
+    }
+
+    function evaluatePenalty(mat, dim) {
+      let penalty = 0;
+      // N1: 5+ consecutive same-color modules in row/col
+      for (let r = 0; r < dim; r++) {
+        let runColor = mat[r][0], runLen = 1;
+        for (let c = 1; c < dim; c++) {
+          if (mat[r][c] === runColor) {
+            runLen++;
+            if (runLen === 5) penalty += 3;
+            else if (runLen > 5) penalty += 1;
+          } else {
+            runColor = mat[r][c];
+            runLen = 1;
+          }
+        }
+      }
+      for (let c = 0; c < dim; c++) {
+        let runColor = mat[0][c], runLen = 1;
+        for (let r = 1; r < dim; r++) {
+          if (mat[r][c] === runColor) {
+            runLen++;
+            if (runLen === 5) penalty += 3;
+            else if (runLen > 5) penalty += 1;
+          } else {
+            runColor = mat[r][c];
+            runLen = 1;
+          }
+        }
+      }
+      // N2: 2x2 blocks
+      for (let r = 0; r < dim - 1; r++) {
+        for (let c = 0; c < dim - 1; c++) {
+          const v = mat[r][c];
+          if (v === mat[r][c + 1] && v === mat[r + 1][c] && v === mat[r + 1][c + 1]) {
+            penalty += 3;
+          }
+        }
+      }
+      // N3: Finder-like 1:1:3:1:1 patterns (1011101 with 4 light modules before or after)
+      for (let r = 0; r < dim; r++) {
+        for (let c = 0; c <= dim - 11; c++) {
+          const row = mat[r];
+          if (row[c] === 1 && row[c+1] === 0 && row[c+2] === 1 && row[c+3] === 1 && row[c+4] === 1 && row[c+5] === 0 && row[c+6] === 1 &&
+              row[c+7] === 0 && row[c+8] === 0 && row[c+9] === 0 && row[c+10] === 0) penalty += 40;
+          if (row[c] === 0 && row[c+1] === 0 && row[c+2] === 0 && row[c+3] === 0 &&
+              row[c+4] === 1 && row[c+5] === 0 && row[c+6] === 1 && row[c+7] === 1 && row[c+8] === 1 && row[c+9] === 0 && row[c+10] === 1) penalty += 40;
+        }
+      }
+      for (let c = 0; c < dim; c++) {
+        for (let r = 0; r <= dim - 11; r++) {
+          if (mat[r][c] === 1 && mat[r+1][c] === 0 && mat[r+2][c] === 1 && mat[r+3][c] === 1 && mat[r+4][c] === 1 && mat[r+5][c] === 0 && mat[r+6][c] === 1 &&
+              mat[r+7][c] === 0 && mat[r+8][c] === 0 && mat[r+9][c] === 0 && mat[r+10][c] === 0) penalty += 40;
+          if (mat[r][c] === 0 && mat[r+1][c] === 0 && mat[r+2][c] === 0 && mat[r+3][c] === 0 &&
+              mat[r+4][c] === 1 && mat[r+5][c] === 0 && mat[r+6][c] === 1 && mat[r+7][c] === 1 && mat[r+8][c] === 1 && mat[r+9][c] === 0 && mat[r+10][c] === 1) penalty += 40;
+        }
+      }
+      // N4: Dark module proportion
+      let dark = 0;
+      for (let r = 0; r < dim; r++) {
+        for (let c = 0; c < dim; c++) dark += mat[r][c];
+      }
+      const pct = (dark * 100) / (dim * dim);
+      const prev5 = Math.floor(pct / 5) * 5;
+      const next5 = prev5 + 5;
+      penalty += Math.min(Math.abs(prev5 - 50) / 5, Math.abs(next5 - 50) / 5) * 10;
+      return penalty;
+    }
+
+    function encodeQRMatrix(text) {
+      const raw = new TextEncoder().encode(text);
+      const n = raw.length;
+      let ver = null;
+      for (let v = 1; v <= 40; v++) {
+        const [, , g1b, g1d, g2b, g2d] = QR_M_TABLE[v];
+        const capCw = g1b * g1d + g2b * g2d;
+        const ccBits = v <= 9 ? 8 : 16;
+        const availBits = capCw * 8 - 4 - ccBits;
+        if (n * 8 <= availBits) { ver = v; break; }
+      }
+      if (!ver) throw new Error("Frame payload exceeds QR v40 capacity");
+
+      const [, ec, g1b, g1d, g2b, g2d] = QR_M_TABLE[ver];
+      const capCw = g1b * g1d + g2b * g2d;
+      const ccBits = ver <= 9 ? 8 : 16;
+
+      const bits = [];
+      const pushBits = (val, len) => {
+        for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+      };
+
+      pushBits(0b0100, 4); // Byte mode
+      pushBits(n, ccBits);
+      for (let i = 0; i < n; i++) pushBits(raw[i], 8);
+      pushBits(0, Math.min(4, capCw * 8 - bits.length));
+      while (bits.length % 8 !== 0) bits.push(0);
+
+      const dataCw = [];
+      for (let i = 0; i < bits.length; i += 8) {
+        let byte = 0;
+        for (let j = 0; j < 8; j++) byte = (byte << 1) | bits[i + j];
+        dataCw.push(byte);
+      }
+      const padBytes = [0xec, 0x11];
+      let pIdx = 0;
+      while (dataCw.length < capCw) {
+        dataCw.push(padBytes[pIdx % 2]);
+        pIdx++;
+      }
+
+      const blocksData = [];
+      const blocksEc = [];
+      let pos = 0;
+      for (let b = 0; b < g1b; b++) {
+        const blk = Uint8Array.from(dataCw.slice(pos, pos + g1d));
+        pos += g1d;
+        blocksData.push(blk);
+        blocksEc.push(rsEncode(blk, ec));
+      }
+      for (let b = 0; b < g2b; b++) {
+        const blk = Uint8Array.from(dataCw.slice(pos, pos + g2d));
+        pos += g2d;
+        blocksData.push(blk);
+        blocksEc.push(rsEncode(blk, ec));
+      }
+
+      const interleaved = [];
+      const maxD = Math.max(g1d, g2d);
+      for (let i = 0; i < maxD; i++) {
+        for (const blk of blocksData) if (i < blk.length) interleaved.push(blk[i]);
+      }
+      for (let i = 0; i < ec; i++) {
+        for (const blk of blocksEc) interleaved.push(blk[i]);
+      }
+
+      const dim = 4 * ver + 17;
+      const baseMat = Array.from({ length: dim }, () => new Int8Array(dim).fill(-1));
+      const isFunc = Array.from({ length: dim }, () => new Uint8Array(dim));
+
+      const setFunc = (mat, r, c, val) => {
+        if (r >= 0 && r < dim && c >= 0 && c < dim) {
+          mat[r][c] = val ? 1 : 0;
+          isFunc[r][c] = 1;
+        }
+      };
+
+      // Finder patterns + separators
+      for (const [fr, fc] of [[0, 0], [0, dim - 7], [dim - 7, 0]]) {
+        for (let r = -1; r <= 7; r++) {
+          for (let c = -1; c <= 7; c++) {
+            if (fr + r >= 0 && fr + r < dim && fc + c >= 0 && fc + c < dim) {
+              const inOuter = r >= 0 && r <= 6 && c >= 0 && c <= 6;
+              const inRing = r === 0 || r === 6 || c === 0 || c === 6;
+              const inCore = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+              setFunc(baseMat, fr + r, fc + c, inOuter && (inRing || inCore));
+            }
+          }
+        }
+      }
+
+      // Alignment patterns
+      const coords = ALIGN_COORD[ver];
+      for (const ar of coords) {
+        for (const ac of coords) {
+          if (isFunc[ar][ac]) continue;
+          for (let r = -2; r <= 2; r++) {
+            for (let c = -2; c <= 2; c++) {
+              setFunc(baseMat, ar + r, ac + c, Math.abs(r) === 2 || Math.abs(c) === 2 || (r === 0 && c === 0));
+            }
+          }
+        }
+      }
+
+      // Timing patterns
+      for (let i = 8; i < dim - 8; i++) {
+        if (!isFunc[6][i]) setFunc(baseMat, 6, i, i % 2 === 0);
+        if (!isFunc[i][6]) setFunc(baseMat, i, 6, i % 2 === 0);
+      }
+
+      // Dark module
+      setFunc(baseMat, 4 * ver + 9, 8, true);
+
+      // Reserve format info
+      for (let i = 0; i < 9; i++) {
+        if (!isFunc[8][i]) setFunc(baseMat, 8, i, false);
+        if (!isFunc[i][8]) setFunc(baseMat, i, 8, false);
+      }
+      for (let i = 0; i < 8; i++) setFunc(baseMat, 8, dim - 1 - i, false);
+      for (let i = 0; i < 7; i++) setFunc(baseMat, dim - 1 - i, 8, false);
+
+      // Version info (V >= 7)
+      if (ver >= 7) {
+        const verInfo = computeVersionInfo(ver);
+        for (let i = 0; i < 18; i++) {
+          const bit = (verInfo >> i) & 1;
+          const r = Math.floor(i / 3);
+          const c = dim - 11 + (i % 3);
+          setFunc(baseMat, r, c, bit);
+          setFunc(baseMat, c, r, bit);
+        }
+      }
+
+      // Place data bits
+      const allBits = [];
+      for (const cw of interleaved) {
+        for (let b = 7; b >= 0; b--) allBits.push((cw >> b) & 1);
+      }
+
+      let bitIdx = 0;
+      let upward = true;
+      let col = dim - 1;
+      while (col > 0) {
+        if (col === 6) col -= 1;
+        for (let step = 0; step < dim; step++) {
+          const r = upward ? (dim - 1 - step) : step;
+          for (const dc of [0, -1]) {
+            const c = col + dc;
+            if (!isFunc[r][c]) {
+              const b = bitIdx < allBits.length ? allBits[bitIdx++] : 0;
+              baseMat[r][c] = b;
+            }
+          }
+        }
+        upward = !upward;
+        col -= 2;
+      }
+
+      // Evaluate all 8 masks and choose lowest penalty
+      let bestMat = null;
+      let bestPenalty = Infinity;
+      const tlCoords = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+      const spCoords = [[dim-1,8],[dim-2,8],[dim-3,8],[dim-4,8],[dim-5,8],[dim-6,8],[dim-7,8],
+                        [8,dim-8],[8,dim-7],[8,dim-6],[8,dim-5],[8,dim-4],[8,dim-3],[8,dim-2],[8,dim-1]];
+
+      for (let m = 0; m < 8; m++) {
+        const cand = baseMat.map(row => Int8Array.from(row));
+        for (let r = 0; r < dim; r++) {
+          for (let c = 0; c < dim; c++) {
+            if (!isFunc[r][c] && maskBit(m, r, c)) cand[r][c] ^= 1;
+          }
+        }
+        const fmtInfo = computeFormatInfo(0b00, m); // EC Level M = 00
+        for (let idx = 0; idx < 15; idx++) {
+          const bit = (fmtInfo >> (14 - idx)) & 1;
+          const [r1, c1] = tlCoords[idx];
+          const [r2, c2] = spCoords[idx];
+          cand[r1][c1] = bit;
+          cand[r2][c2] = bit;
+        }
+        const pen = evaluatePenalty(cand, dim);
+        if (pen < bestPenalty) {
+          bestPenalty = pen;
+          bestMat = cand;
+        }
+      }
+
+      return { matrix: bestMat, version: ver, dimension: dim };
+    }
+
+    function renderQRToCanvas(canvas, qrObj) {
+      const { matrix, dimension } = qrObj;
+      const quiet = 4;
+      const totalModules = dimension + quiet * 2;
+      const targetPx = 440;
+      const scale = Math.max(3, Math.floor(targetPx / totalModules));
+      const size = totalModules * scale;
+
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#000000";
+
+      for (let r = 0; r < dimension; r++) {
+        for (let c = 0; c < dimension; c++) {
+          if (matrix[r][c] === 1) {
+            ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       3. PURE-JS OFFLINE QR DECODER (FALLBACK WHEN BarcodeDetector ABSENT)
+       ========================================================================= */
+    const FORMAT_LOOKUP = [];
+    (() => {
+      const ecMap = [1, 0, 3, 2]; // 00->M(1), 01->L(0), 10->H(3), 11->Q(2)
+      for (let ec = 0; ec < 4; ec++) {
+        for (let mask = 0; mask < 8; mask++) {
+          FORMAT_LOOKUP.push({
+            bits: computeFormatInfo(ec, mask),
+            ecLevel: ecMap[ec],
+            mask
+          });
+        }
+      }
+    })();
+
+    function hammingDistance(a, b) {
+      let x = a ^ b, count = 0;
+      while (x) { count += x & 1; x >>= 1; }
+      return count;
+    }
+
+    function decodeFormatBits(raw15) {
+      let best = null, bestDist = 4;
+      for (const entry of FORMAT_LOOKUP) {
+        const d = hammingDistance(raw15, entry.bits);
+        if (d < bestDist) {
+          bestDist = d;
+          best = entry;
+        }
+      }
+      return best;
+    }
+
+    function solveHomography(srcPts, dstPts) {
+      // Maps src (u, v) -> dst (x, y)
+      const A = [];
+      const b = [];
+      for (let i = 0; i < 4; i++) {
+        const [u, v] = srcPts[i];
+        const [x, y] = dstPts[i];
+        A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]);
+        b.push(x);
+        A.push([0, 0, 0, u, v, 1, -u * y, -v * y]);
+        b.push(y);
+      }
+      // Gaussian elimination
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        let maxRow = i;
+        for (let k = i + 1; k < n; k++) {
+          if (Math.abs(A[k][i]) > Math.abs(A[maxRow][i])) maxRow = k;
+        }
+        [A[i], A[maxRow]] = [A[maxRow], A[i]];
+        [b[i], b[maxRow]] = [b[maxRow], b[i]];
+        if (Math.abs(A[i][i]) < 1e-9) return null;
+        for (let k = i + 1; k < n; k++) {
+          const factor = A[k][i] / A[i][i];
+          b[k] -= factor * b[i];
+          for (let j = i; j < n; j++) A[k][j] -= factor * A[i][j];
+        }
+      }
+      const h = new Array(9);
+      for (let i = n - 1; i >= 0; i--) {
+        let sum = b[i];
+        for (let j = i + 1; j < n; j++) sum -= A[i][j] * h[j];
+        h[i] = sum / A[i][i];
+      }
+      h[8] = 1;
+      return h;
+    }
+
+    function projectPoint(h, u, v) {
+      const denom = h[6] * u + h[7] * v + h[8];
+      return [(h[0] * u + h[1] * v + h[2]) / denom, (h[3] * u + h[4] * v + h[5]) / denom];
+    }
+
+    function decodeQRFromImageData(imgData) {
+      const { width: w, height: h, data } = imgData;
+      const total = w * h;
+      const gray = new Uint8Array(total);
+      for (let i = 0, p = 0; i < total; i++, p += 4) {
+        gray[i] = (data[p] * 77 + data[p + 1] * 150 + data[p + 2] * 29) >> 8;
+      }
+
+      // Bradley-Roth integral image adaptive thresholding (handles screen glare & uneven backlight)
+      const integral = new Uint32Array((w + 1) * (h + 1));
+      for (let y = 0; y < h; y++) {
+        let rowSum = 0;
+        const iRow = (y + 1) * (w + 1);
+        const pRow = y * (w + 1);
+        const gRow = y * w;
+        for (let x = 0; x < w; x++) {
+          rowSum += gray[gRow + x];
+          integral[iRow + x + 1] = integral[pRow + x + 1] + rowSum;
+        }
+      }
+
+      const bin = new Uint8Array(total); // 1 = dark, 0 = light
+      const s = Math.max(12, (Math.min(w, h) >> 4));
+      const halfS = s >> 1;
+      for (let y = 0; y < h; y++) {
+        const y1 = Math.max(0, y - halfS);
+        const y2 = Math.min(h - 1, y + halfS);
+        const gRow = y * w;
+        for (let x = 0; x < w; x++) {
+          const x1 = Math.max(0, x - halfS);
+          const x2 = Math.min(w - 1, x + halfS);
+          const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+          const sum = integral[(y2 + 1) * (w + 1) + (x2 + 1)]
+                    - integral[y1 * (w + 1) + (x2 + 1)]
+                    - integral[(y2 + 1) * (w + 1) + x1]
+                    + integral[y1 * (w + 1) + x1];
+          bin[gRow + x] = (gray[gRow + x] * count < sum * 0.88) ? 1 : 0;
+        }
+      }
+
+      // Finder pattern run-length scanner (1:1:3:1:1)
+      const checkRatio = (counts) => {
+        const totalMod = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
+        if (totalMod < 7) return false;
+        const unit = totalMod / 7.0;
+        const tol = unit * 0.55;
+        return Math.abs(counts[0] - unit) < tol &&
+               Math.abs(counts[1] - unit) < tol &&
+               Math.abs(counts[2] - 3 * unit) < 3 * tol &&
+               Math.abs(counts[3] - unit) < tol &&
+               Math.abs(counts[4] - unit) < tol;
+      };
+
+      const crossCheckVertical = (cx, startY, maxCount, expectedTotal) => {
+        const counts = [0, 0, 0, 0, 0];
+        let y = startY;
+        while (y >= 0 && bin[y * w + cx] === 1) { counts[2]++; y--; }
+        if (y < 0) return NaN;
+        while (y >= 0 && bin[y * w + cx] === 0 && counts[1] <= maxCount) { counts[1]++; y--; }
+        if (y < 0 || counts[1] > maxCount) return NaN;
+        while (y >= 0 && bin[y * w + cx] === 1 && counts[0] <= maxCount) { counts[0]++; y--; }
+        if (counts[0] > maxCount) return NaN;
+
+        y = startY + 1;
+        while (y < h && bin[y * w + cx] === 1) { counts[2]++; y++; }
+        if (y >= h) return NaN;
+        while (y < h && bin[y * w + cx] === 0 && counts[3] <= maxCount) { counts[3]++; y++; }
+        if (y >= h || counts[3] > maxCount) return NaN;
+        while (y < h && bin[y * w + cx] === 1 && counts[4] <= maxCount) { counts[4]++; y++; }
+        if (counts[4] > maxCount) return NaN;
+
+        const tot = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
+        if (5 * Math.abs(tot - expectedTotal) >= 2 * expectedTotal) return NaN;
+        if (!checkRatio(counts)) return NaN;
+        return (y - counts[4] - counts[3] - counts[2] / 2.0);
+      };
+
+      const crossCheckHorizontal = (startX, cy, maxCount, expectedTotal) => {
+        const counts = [0, 0, 0, 0, 0];
+        const row = cy * w;
+        let x = startX;
+        while (x >= 0 && bin[row + x] === 1) { counts[2]++; x--; }
+        if (x < 0) return NaN;
+        while (x >= 0 && bin[row + x] === 0 && counts[1] <= maxCount) { counts[1]++; x--; }
+        if (x < 0 || counts[1] > maxCount) return NaN;
+        while (x >= 0 && bin[row + x] === 1 && counts[0] <= maxCount) { counts[0]++; x--; }
+        if (counts[0] > maxCount) return NaN;
+
+        x = startX + 1;
+        while (x < w && bin[row + x] === 1) { counts[2]++; x++; }
+        if (x >= w) return NaN;
+        while (x < w && bin[row + x] === 0 && counts[3] <= maxCount) { counts[3]++; x++; }
+        if (x >= w || counts[3] > maxCount) return NaN;
+        while (x < w && bin[row + x] === 1 && counts[4] <= maxCount) { counts[4]++; x++; }
+        if (counts[4] > maxCount) return NaN;
+
+        const tot = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
+        if (5 * Math.abs(tot - expectedTotal) >= expectedTotal) return NaN;
+        if (!checkRatio(counts)) return NaN;
+        return (x - counts[4] - counts[3] - counts[2] / 2.0);
+      };
+
+      const centers = [];
+      const rowStep = Math.max(2, Math.floor(h / 260));
+      for (let y = rowStep; y < h - rowStep; y += rowStep) {
+        const counts = [0, 0, 0, 0, 0];
+        let state = 0;
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const bit = bin[row + x];
+          if (bit === 1) {
+            if ((state & 1) === 1) state++;
+            counts[state]++;
+          } else {
+            if ((state & 1) === 0) {
+              if (state === 4) {
+                if (checkRatio(counts)) {
+                  const tot = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
+                  let cx = x - counts[4] - counts[3] - counts[2] / 2.0;
+                  const cy = crossCheckVertical(Math.round(cx), y, counts[2], tot);
+                  if (!Number.isNaN(cy)) {
+                    cx = crossCheckHorizontal(Math.round(cx), Math.round(cy), counts[2], tot);
+                    if (!Number.isNaN(cx)) {
+                      const modSize = tot / 7.0;
+                      let merged = false;
+                      for (const c of centers) {
+                        if (Math.hypot(c.x - cx, c.y - cy) < modSize * 1.5 && Math.abs(c.mod - modSize) < modSize * 0.4) {
+                          c.x = (c.x * c.n + cx) / (c.n + 1);
+                          c.y = (c.y * c.n + cy) / (c.n + 1);
+                          c.mod = (c.mod * c.n + modSize) / (c.n + 1);
+                          c.n++;
+                          merged = true;
+                          break;
+                        }
+                      }
+                      if (!merged) centers.push({ x: cx, y: cy, mod: modSize, n: 1 });
+                    }
+                  }
+                }
+                counts[0] = counts[2]; counts[1] = counts[3]; counts[2] = counts[4];
+                counts[3] = 1; counts[4] = 0; state = 3;
+              } else {
+                state++;
+                counts[state]++;
+              }
+            } else {
+              counts[state]++;
+            }
+          }
+        }
+      }
+
+      if (centers.length < 3) return null;
+      centers.sort((a, b) => b.n - a.n);
+      const top = centers.slice(0, 6);
+
+      // Find best 3 finder centers forming an isosceles right triangle
+      let bestTriple = null, bestScore = Infinity;
+      for (let i = 0; i < top.length; i++) {
+        for (let j = i + 1; j < top.length; j++) {
+          for (let k = j + 1; k < top.length; k++) {
+            const pts = [top[i], top[j], top[k]];
+            const d01 = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            const d12 = Math.hypot(pts[1].x - pts[2].x, pts[1].y - pts[2].y);
+            const d02 = Math.hypot(pts[0].x - pts[2].x, pts[0].y - pts[2].y);
+            const pairs = [
+              { hyp: d12, leg1: d01, leg2: d02, tl: pts[0], p1: pts[1], p2: pts[2] },
+              { hyp: d02, leg1: d01, leg2: d12, tl: pts[1], p1: pts[0], p2: pts[2] },
+              { hyp: d01, leg1: d02, leg2: d12, tl: pts[2], p1: pts[0], p2: pts[1] }
+            ];
+            for (const cand of pairs) {
+              if (cand.leg1 < 20 || cand.leg2 < 20) continue;
+              const legDiff = Math.abs(cand.leg1 - cand.leg2) / Math.max(cand.leg1, cand.leg2);
+              const expectedHyp = Math.SQRT2 * ((cand.leg1 + cand.leg2) * 0.5);
+              const hypDiff = Math.abs(cand.hyp - expectedHyp) / expectedHyp;
+              const score = legDiff + hypDiff;
+              if (score < 0.28 && score < bestScore) {
+                bestScore = score;
+                bestTriple = cand;
+              }
+            }
+          }
+        }
+      }
+      if (!bestTriple) return null;
+
+      // Orient Top-Left, Top-Right, Bottom-Left via 2D cross product
+      const { tl, p1, p2 } = bestTriple;
+      const cross = (p1.x - tl.x) * (p2.y - tl.y) - (p1.y - tl.y) * (p2.x - tl.x);
+      const tr = cross > 0 ? p1 : p2;
+      const bl = cross > 0 ? p2 : p1;
+
+      const avgMod = (tl.mod + tr.mod + bl.mod) / 3.0;
+      const distTop = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+      const distLeft = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+      const estDim = Math.round(((distTop + distLeft) / (2 * avgMod)) + 7);
+      const estVer = Math.max(1, Math.min(40, Math.round((estDim - 17) / 4)));
+
+      // Try candidate versions around estVer
+      const verCandidates = [estVer];
+      if (estVer > 1) verCandidates.push(estVer - 1);
+      if (estVer < 40) verCandidates.push(estVer + 1);
+
+      for (const ver of verCandidates) {
+        const dim = 4 * ver + 17;
+        // Initial affine estimate for bottom-right alignment center (dim - 6.5, dim - 6.5)
+        let brX = tr.x + (bl.x - tl.x);
+        let brY = tr.y + (bl.y - tl.y);
+        let srcBR = [dim - 3.5, dim - 3.5];
+
+        if (ver >= 2) {
+          const alignMod = dim - 6.5;
+          const uRatio = (alignMod - 3.5) / (dim - 7);
+          const guessX = tl.x + uRatio * (tr.x - tl.x) + uRatio * (bl.x - tl.x);
+          const guessY = tl.y + uRatio * (tr.y - tl.y) + uRatio * (bl.y - tl.y);
+          const searchR = Math.max(8, Math.round(avgMod * 4.5));
+          let bestAlign = null, bestAlignDist = Infinity;
+
+          for (let sy = Math.max(2, Math.round(guessY - searchR)); sy <= Math.min(h - 3, Math.round(guessY + searchR)); sy++) {
+            for (let sx = Math.max(2, Math.round(guessX - searchR)); sx <= Math.min(w - 3, Math.round(guessX + searchR)); sx++) {
+              if (bin[sy * w + sx] !== 1) continue;
+              // Check 1:1:1 dark center surrounded by light ring and dark outer ring
+              const m = Math.round(avgMod);
+              if (m >= 2 && sx - 2*m >= 0 && sx + 2*m < w && sy - 2*m >= 0 && sy + 2*m < h) {
+                if (bin[sy * w + (sx - m)] === 0 && bin[sy * w + (sx + m)] === 0 &&
+                    bin[(sy - m) * w + sx] === 0 && bin[(sy + m) * w + sx] === 0 &&
+                    bin[sy * w + (sx - 2*m)] === 1 && bin[sy * w + (sx + 2*m)] === 1) {
+                  const d = Math.hypot(sx - guessX, sy - guessY);
+                  if (d < bestAlignDist) {
+                    bestAlignDist = d;
+                    bestAlign = [sx + 0.5, sy + 0.5];
+                  }
+                }
+              }
+            }
+          }
+          if (bestAlign) {
+            brX = bestAlign[0];
+            brY = bestAlign[1];
+            srcBR = [alignMod, alignMod];
+          }
+        }
+
+        const H = solveHomography(
+          [[3.5, 3.5], [dim - 3.5, 3.5], [3.5, dim - 3.5], srcBR],
+          [[tl.x, tl.y], [tr.x, tr.y], [bl.x, bl.y], [brX, brY]]
+        );
+        if (!H) continue;
+
+        const sampleModule = (r, c) => {
+          let darkVotes = 0;
+          for (const dy of [-0.22, 0, 0.22]) {
+            for (const dx of [-0.22, 0, 0.22]) {
+              const [px, py] = projectPoint(H, c + 0.5 + dx, r + 0.5 + dy);
+              const ix = Math.round(px), iy = Math.round(py);
+              if (ix >= 0 && ix < w && iy >= 0 && iy < h) darkVotes += bin[iy * w + ix];
+            }
+          }
+          return darkVotes >= 5 ? 1 : 0;
+        };
+
+        // Read format info (top-left & split copy)
+        const tlCoords = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+        const spCoords = [[dim-1,8],[dim-2,8],[dim-3,8],[dim-4,8],[dim-5,8],[dim-6,8],[dim-7,8],
+                          [8,dim-8],[8,dim-7],[8,dim-6],[8,dim-5],[8,dim-4],[8,dim-3],[8,dim-2],[8,dim-1]];
+        let fmt1 = 0, fmt2 = 0;
+        for (let i = 0; i < 15; i++) {
+          fmt1 = (fmt1 << 1) | sampleModule(tlCoords[i][0], tlCoords[i][1]);
+          fmt2 = (fmt2 << 1) | sampleModule(spCoords[i][0], spCoords[i][1]);
+        }
+        const fmt = decodeFormatBits(fmt1) || decodeFormatBits(fmt2);
+        if (!fmt || (fmt.ecLevel !== 1 && fmt.ecLevel !== 0)) continue; // Support Level M (1) and L (0)
+
+        // Build function mask to skip non-data modules
+        const isFunc = Array.from({ length: dim }, () => new Uint8Array(dim));
+        const markFunc = (r, c) => { if (r >= 0 && r < dim && c >= 0 && c < dim) isFunc[r][c] = 1; };
+        for (const [fr, fc] of [[0, 0], [0, dim - 7], [dim - 7, 0]]) {
+          for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) markFunc(fr + r, fc + c);
+        }
+        const coords = ALIGN_COORD[ver];
+        for (const ar of coords) {
+          for (const ac of coords) {
+            if (isFunc[ar][ac]) continue;
+            for (let r = -2; r <= 2; r++) for (let c = -2; c <= 2; c++) markFunc(ar + r, ac + c);
+          }
+        }
+        for (let i = 8; i < dim - 8; i++) { markFunc(6, i); markFunc(i, 6); }
+        markFunc(4 * ver + 9, 8);
+        for (let i = 0; i < 9; i++) { markFunc(8, i); markFunc(i, 8); }
+        for (let i = 0; i < 8; i++) markFunc(8, dim - 1 - i);
+        for (let i = 0; i < 7; i++) markFunc(dim - 1 - i, 8);
+        if (ver >= 7) {
+          for (let i = 0; i < 18; i++) {
+            const r = Math.floor(i / 3), c = dim - 11 + (i % 3);
+            markFunc(r, c); markFunc(c, r);
+          }
+        }
+
+        // Extract unmasked bits in zig-zag order
+        const rawBits = [];
+        let upward = true, col = dim - 1;
+        while (col > 0) {
+          if (col === 6) col -= 1;
+          for (let step = 0; step < dim; step++) {
+            const r = upward ? (dim - 1 - step) : step;
+            for (const dc of [0, -1]) {
+              const c = col + dc;
+              if (!isFunc[r][c]) {
+                let bit = sampleModule(r, c);
+                if (maskBit(fmt.mask, r, c)) bit ^= 1;
+                rawBits.push(bit);
+              }
+            }
+          }
+          upward = !upward;
+          col -= 2;
+        }
+
+        const table = fmt.ecLevel === 1 ? QR_M_TABLE : QR_L_TABLE;
+        const [totCw, ec, g1b, g1d, g2b, g2d] = table[ver];
+        if (rawBits.length < totCw * 8) continue;
+
+        const cw = new Uint8Array(totCw);
+        for (let i = 0; i < totCw; i++) {
+          let b = 0;
+          for (let j = 0; j < 8; j++) b = (b << 1) | rawBits[i * 8 + j];
+          cw[i] = b;
+        }
+
+        // De-interleave blocks & run Reed-Solomon error correction
+        const totalBlocks = g1b + g2b;
+        const blocksData = Array.from({ length: totalBlocks }, (_, idx) => new Uint8Array(idx < g1b ? g1d : g2d));
+        const blocksEc = Array.from({ length: totalBlocks }, () => new Uint8Array(ec));
+
+        let ptr = 0;
+        const maxD = Math.max(g1d, g2d);
+        for (let i = 0; i < maxD; i++) {
+          for (let b = 0; b < totalBlocks; b++) {
+            if (i < blocksData[b].length) blocksData[b][i] = cw[ptr++];
+          }
+        }
+        for (let i = 0; i < ec; i++) {
+          for (let b = 0; b < totalBlocks; b++) {
+            blocksEc[b][i] = cw[ptr++];
+          }
+        }
+
+        const recovered = [];
+        let rsOk = true;
+        for (let b = 0; b < totalBlocks; b++) {
+          const fullBlk = new Uint8Array(blocksData[b].length + ec);
+          fullBlk.set(blocksData[b]);
+          fullBlk.set(blocksEc[b], blocksData[b].length);
+          const fixed = rsDecode(fullBlk, ec);
+          if (!fixed) { rsOk = false; break; }
+          for (let k = 0; k < fixed.length; k++) recovered.push(fixed[k]);
+        }
+        if (!rsOk) continue;
+
+        // Parse Byte-mode bit stream
+        const dataBits = [];
+        for (const byte of recovered) {
+          for (let b = 7; b >= 0; b--) dataBits.push((byte >> b) & 1);
+        }
+        let bitPos = 0;
+        const readBits = (len) => {
+          if (bitPos + len > dataBits.length) return -1;
+          let v = 0;
+          for (let i = 0; i < len; i++) v = (v << 1) | dataBits[bitPos++];
+          return v;
+        };
+
+        const outBytes = [];
+        let parseOk = true;
+        while (bitPos + 4 <= dataBits.length) {
+          const mode = readBits(4);
+          if (mode === 0) break; // Terminator
+          if (mode === 0b0100) { // Byte mode
+            const countLen = ver <= 9 ? 8 : 16;
+            const charCount = readBits(countLen);
+            if (charCount < 0 || bitPos + charCount * 8 > dataBits.length) { parseOk = false; break; }
+            for (let i = 0; i < charCount; i++) outBytes.push(readBits(8));
+          } else {
+            parseOk = false;
+            break;
+          }
+        }
+        if (parseOk && outBytes.length > 0) {
+          try {
+            return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(outBytes));
+          } catch (_) {
+            continue;
+          }
+        }
+      }
+      return null;
+    }
+
+    /* =========================================================================
+       4. CRC32, GZIP COMPRESSION / DECOMPRESSION & PROTOCOL FRAMING
+       ========================================================================= */
+    const CRC_TABLE = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      CRC_TABLE[i] = c >>> 0;
+    }
+
+    function crc32Hex(str) {
+      const bytes = new TextEncoder().encode(str);
+      let crc = 0xffffffff;
+      for (let i = 0; i < bytes.length; i++) {
+        crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+      }
+      return ((crc ^ 0xffffffff) >>> 0).toString(16).toUpperCase().padStart(8, "0");
+    }
+
+    function bytesToBase64(bytes) {
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      return btoa(bin);
+    }
+
+    function base64ToBytes(b64) {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    async function compressUtf8(text) {
+      const rawBytes = new TextEncoder().encode(text);
+      if (typeof CompressionStream !== "undefined") {
+        try {
+          const cs = new CompressionStream("gzip");
+          const writer = cs.writable.getWriter();
+          writer.write(rawBytes);
+          writer.close();
+          const buf = await new Response(cs.readable).arrayBuffer();
+          const gzBytes = new Uint8Array(buf);
+          if (gzBytes.length < rawBytes.length) {
+            return { flag: "G", bytes: gzBytes, rawLen: rawBytes.length };
+          }
+        } catch (_) { /* fallback to raw */ }
+      }
+      return { flag: "R", bytes: rawBytes, rawLen: rawBytes.length };
+    }
+
+    async function decompressUtf8(flag, bytes) {
+      if (flag === "R") {
+        return new TextDecoder("utf-8").decode(bytes);
+      }
+      if (flag === "G") {
+        if (typeof DecompressionStream !== "undefined") {
+          const ds = new DecompressionStream("gzip");
+          const writer = ds.writable.getWriter();
+          writer.write(bytes);
+          writer.close();
+          const buf = await new Response(ds.readable).arrayBuffer();
+          return new TextDecoder("utf-8").decode(new Uint8Array(buf));
+        }
+        throw new Error("This browser does not support Gzip DecompressionStream.");
+      }
+      throw new Error("Unknown compression flag: " + flag);
+    }
+
+    function makeSessionId() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let s = "";
+      for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      return s;
+    }
+
+    function formatBytes(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+      return (n / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    /* =========================================================================
+       5. SCREEN WAKE LOCK & WEB AUDIO FEEDBACK
+       ========================================================================= */
+    let wakeLockSentinel = null;
+    const wakeLockBadge = document.getElementById("wakeLockBadge");
+
+    async function requestWakeLock() {
+      if (!("wakeLock" in navigator)) return;
+      try {
+        if (!wakeLockSentinel) {
+          wakeLockSentinel = await navigator.wakeLock.request("screen");
+          wakeLockBadge.classList.add("active");
+          wakeLockBadge.innerHTML = '<span class="dot"></span>Wake Lock: Active';
+          wakeLockSentinel.addEventListener("release", () => {
+            wakeLockSentinel = null;
+            wakeLockBadge.classList.remove("active");
+            wakeLockBadge.innerHTML = '<span class="dot"></span>Wake Lock: Idle';
+          });
+        }
+      } catch (_) { /* ignore if low battery or unsupported */ }
+    }
+
+    async function releaseWakeLock() {
+      if (wakeLockSentinel) {
+        try { await wakeLockSentinel.release(); } catch (_) {}
+        wakeLockSentinel = null;
+      }
+      wakeLockBadge.classList.remove("active");
+      wakeLockBadge.innerHTML = '<span class="dot"></span>Wake Lock: Idle';
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && (senderState.playing || readerState.scanning)) {
+        requestWakeLock();
+      }
+    });
+
+    let audioCtx = null;
+    let isMuted = false;
+
+    function playTone(type) {
+      if (isMuted) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === "chunk") {
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(660, now);
+          osc.frequency.exponentialRampToValueAtTime(990, now + 0.08);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } else if (type === "done") {
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.1);
+          osc.frequency.setValueAtTime(783.99, now + 0.2);
+          osc.frequency.setValueAtTime(1046.5, now + 0.3);
+          gain.gain.setValueAtTime(0.16, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+          osc.start(now);
+          osc.stop(now + 0.56);
+        }
+      } catch (_) {}
+    }
+
+    /* =========================================================================
+       6. TAB NAVIGATION
+       ========================================================================= */
+    const tabSender = document.getElementById("tabSender");
+    const tabReader = document.getElementById("tabReader");
+    const panelSender = document.getElementById("panelSender");
+    const panelReader = document.getElementById("panelReader");
+
+    function switchTab(mode) {
+      if (mode === "sender") {
+        stopCameraScan();
+        tabSender.classList.add("active");
+        tabReader.classList.remove("active");
+        panelSender.classList.add("active");
+        panelReader.classList.remove("active");
+      } else {
+        pauseSenderLoop();
+        tabReader.classList.add("active");
+        tabSender.classList.remove("active");
+        panelReader.classList.add("active");
+        panelSender.classList.remove("active");
+        populateCameras();
+      }
+    }
+
+    tabSender.addEventListener("click", () => switchTab("sender"));
+    tabReader.addEventListener("click", () => switchTab("reader"));
+
+    /* =========================================================================
+       7. SENDER MODE CONTROLLER
+       ========================================================================= */
+    const senderState = {
+      density: "compact", // compact = 820 chars, large = 380 chars
+      intervalSec: 10.0,
+      frames: [],
+      qrCache: [],
+      sessionId: "",
+      currentIdx: 0,
+      loopCount: 1,
+      playing: false,
+      frameStartTime: 0,
+      rafId: null
+    };
+
+    const senderText = document.getElementById("senderText");
+    const statOrig = document.getElementById("statOrig");
+    const statComp = document.getElementById("statComp");
+    const statFrames = document.getElementById("statFrames");
+    const statEta = document.getElementById("statEta");
+    const densityHint = document.getElementById("densityHint");
+    const intervalSlider = document.getElementById("intervalSlider");
+    const intervalLabel = document.getElementById("intervalLabel");
+    const btnGenerate = document.getElementById("btnGenerate");
+    const btnPlayPause = document.getElementById("btnPlayPause");
+    const btnPlayPauseStage = document.getElementById("btnPlayPauseStage");
+    const senderStageCard = document.getElementById("senderStageCard");
+    const qrCanvas = document.getElementById("qrCanvas");
+    const qrCaption = document.getElementById("qrCaption");
+    const hudFrame = document.getElementById("hudFrame");
+    const hudSession = document.getElementById("hudSession");
+    const hudLoop = document.getElementById("hudLoop");
+    const timerBar = document.getElementById("timerBar");
+
+    function getChunkSize() {
+      return senderState.density === "compact" ? 820 : 380;
+    }
+
+    let statsTimer = null;
+    async function updateSenderStatsPreview() {
+      const txt = senderText.value;
+      if (!txt) {
+        statOrig.textContent = "0 B";
+        statComp.textContent = "0 B (—)";
+        statFrames.textContent = "0";
+        statEta.textContent = "0s";
+        return;
+      }
+      const { flag, bytes, rawLen } = await compressUtf8(txt);
+      const b64Len = Math.ceil(bytes.length / 3) * 4;
+      const frames = Math.max(1, Math.ceil(b64Len / getChunkSize()));
+      const ratio = rawLen > 0 ? Math.max(0, Math.round((1 - bytes.length / rawLen) * 100)) : 0;
+      statOrig.textContent = formatBytes(rawLen);
+      statComp.textContent = flag === "G" ? `${formatBytes(bytes.length)} (-${ratio}%)` : `${formatBytes(bytes.length)} (Raw)`;
+      statFrames.textContent = String(frames);
+      const totalSec = Math.round(frames * senderState.intervalSec);
+      statEta.textContent = totalSec >= 60 ? `${Math.floor(totalSec / 60)}m ${totalSec % 60}s` : `${totalSec}s`;
+    }
+
+    senderText.addEventListener("input", () => {
+      clearTimeout(statsTimer);
+      statsTimer = setTimeout(updateSenderStatsPreview, 180);
+    });
+
+    document.getElementById("fileInput").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        senderText.value = String(reader.result || "");
+        updateSenderStatsPreview();
+      };
+      reader.readAsText(file, "utf-8");
+      e.target.value = "";
+    });
+
+    document.getElementById("btnSample").addEventListener("click", () => {
+      const sampleSection = `# Air-Gapped Optical Transfer Verification\n\nThis Markdown document tests **UTF-8 encoding**, Gzip compression, CRC-32 checksum verification, and out-of-order QR frame assembly.\n\n## Key Features Verified\n- **Continuous Loop**: Start scanning at any point in the cycle.\n- **Per-Frame Checksums**: Corrupted scans are automatically discarded.\n- **Zero Network Calls**: Runs 100% offline in a single HTML file.\n\n\`\`\`python\ndef verify_integrity(chunks):\n    return all(chunk.valid for chunk in chunks)\n\`\`\`\n\n`;
+      senderText.value = sampleSection.repeat(10);
+      updateSenderStatsPreview();
+    });
+
+    document.getElementById("btnClearSender").addEventListener("click", () => {
+      pauseSenderLoop();
+      senderText.value = "";
+      senderState.frames = [];
+      senderState.qrCache = [];
+      senderStageCard.classList.add("hidden");
+      btnPlayPause.disabled = true;
+      updateSenderStatsPreview();
+    });
+
+    for (const btn of [document.getElementById("btnDensityCompact"), document.getElementById("btnDensityLarge")]) {
+      btn.addEventListener("click", () => {
+        document.getElementById("btnDensityCompact").classList.remove("active");
+        document.getElementById("btnDensityLarge").classList.remove("active");
+        btn.classList.add("active");
+        senderState.density = btn.dataset.density;
+        densityHint.textContent = senderState.density === "compact" ? "~820 chars/QR" : "~380 chars/QR";
+        updateSenderStatsPreview();
+      });
+    }
+
+    intervalSlider.addEventListener("input", () => {
+      senderState.intervalSec = parseFloat(intervalSlider.value);
+      intervalLabel.textContent = senderState.intervalSec.toFixed(1) + "s";
+      if (senderState.playing) senderState.frameStartTime = performance.now();
+      updateSenderStatsPreview();
+    });
+
+    function displaySenderFrame(idx) {
+      const total = senderState.frames.length;
+      if (total === 0) return;
+      senderState.currentIdx = ((idx % total) + total) % total;
+      const frameStr = senderState.frames[senderState.currentIdx];
+
+      if (!senderState.qrCache[senderState.currentIdx]) {
+        senderState.qrCache[senderState.currentIdx] = encodeQRMatrix(frameStr);
+      }
+      renderQRToCanvas(qrCanvas, senderState.qrCache[senderState.currentIdx]);
+
+      hudFrame.textContent = `Frame ${senderState.currentIdx + 1} / ${total}`;
+      hudSession.textContent = `Session: ${senderState.sessionId}`;
+      hudLoop.textContent = `Loop #${senderState.loopCount}`;
+      qrCaption.textContent = `CHUNK ${senderState.currentIdx + 1} OF ${total}  •  SID ${senderState.sessionId}`;
+      timerBar.style.width = "0%";
+      senderState.frameStartTime = performance.now();
+    }
+
+    function tickSenderLoop(now) {
+      if (!senderState.playing) return;
+      const elapsedSec = (now - senderState.frameStartTime) / 1000;
+      const pct = Math.min(100, (elapsedSec / senderState.intervalSec) * 100);
+      timerBar.style.width = pct + "%";
+
+      if (elapsedSec >= senderState.intervalSec) {
+        const nextIdx = senderState.currentIdx + 1;
+        if (nextIdx >= senderState.frames.length) {
+          senderState.loopCount++;
+        }
+        displaySenderFrame(nextIdx);
+      }
+      senderState.rafId = requestAnimationFrame(tickSenderLoop);
+    }
+
+    function startSenderLoop() {
+      if (senderState.frames.length === 0) return;
+      senderState.playing = true;
+      senderState.frameStartTime = performance.now();
+      btnPlayPause.textContent = "⏸ Pause Loop";
+      btnPlayPauseStage.textContent = "⏸ Pause";
+      requestWakeLock();
+      senderState.rafId = requestAnimationFrame(tickSenderLoop);
+    }
+
+    function pauseSenderLoop() {
+      senderState.playing = false;
+      if (senderState.rafId) cancelAnimationFrame(senderState.rafId);
+      btnPlayPause.textContent = "▶ Resume Loop";
+      btnPlayPauseStage.textContent = "▶ Resume";
+      releaseWakeLock();
+    }
+
+    btnGenerate.addEventListener("click", async () => {
+      const txt = senderText.value;
+      if (!txt.trim()) {
+        alert("Please paste some Markdown/text or load a file first.");
+        return;
+      }
+      pauseSenderLoop();
+      btnGenerate.disabled = true;
+      btnGenerate.textContent = "⏳ Encoding…";
+
+      try {
+        const { flag, bytes } = await compressUtf8(txt);
+        const b64 = bytesToBase64(bytes);
+        const chunkLen = getChunkSize();
+        const chunks = [];
+        for (let i = 0; i < b64.length; i += chunkLen) {
+          chunks.push(b64.slice(i, i + chunkLen));
+        }
+        if (chunks.length === 0) chunks.push("");
+
+        const sid = makeSessionId();
+        const total = chunks.length;
+        const frames = chunks.map((data, i) => {
+          const core = `${sid}|${flag}|${i + 1}/${total}|${data}`;
+          const crc = crc32Hex(core);
+          return `QB1|${sid}|${flag}|${i + 1}/${total}|${crc}|${data}`;
+        });
+
+        senderState.frames = frames;
+        senderState.qrCache = new Array(total).fill(null);
+        senderState.sessionId = sid;
+        senderState.currentIdx = 0;
+        senderState.loopCount = 1;
+
+        senderStageCard.classList.remove("hidden");
+        btnPlayPause.disabled = false;
+        btnPlayPause.textContent = "▶ Start Loop";
+        displaySenderFrame(0);
+        updateSenderStatsPreview();
+      } catch (err) {
+        alert("Encoding error: " + err.message);
+      } finally {
+        btnGenerate.disabled = false;
+        btnGenerate.textContent = "⚡ Generate QR Sequence";
+      }
+    });
+
+    btnPlayPause.addEventListener("click", () => {
+      if (senderState.playing) pauseSenderLoop();
+      else startSenderLoop();
+    });
+
+    btnPlayPauseStage.addEventListener("click", () => {
+      if (senderState.playing) pauseSenderLoop();
+      else startSenderLoop();
+    });
+
+    document.getElementById("btnPrevFrame").addEventListener("click", () => {
+      displaySenderFrame(senderState.currentIdx - 1);
+    });
+
+    document.getElementById("btnNextFrame").addEventListener("click", () => {
+      displaySenderFrame(senderState.currentIdx + 1);
+    });
+
+    document.getElementById("btnJumpMissing").addEventListener("click", () => {
+      const total = senderState.frames.length;
+      if (!total) return;
+      const input = prompt(`Enter frame number to jump to (1 to ${total}):`, String(senderState.currentIdx + 1));
+      const num = parseInt(input, 10);
+      if (num >= 1 && num <= total) {
+        displaySenderFrame(num - 1);
+      }
+    });
+
+    /* =========================================================================
+       8. READER MODE CONTROLLER (MOBILE CAMERA + CHUNK COLLECTOR)
+       ========================================================================= */
+    const readerState = {
+      scanning: false,
+      stream: null,
+      videoTrack: null,
+      torchOn: false,
+      detector: null,
+      rafId: null,
+      lastScanTime: 0,
+      sessionId: null,
+      compFlag: "G",
+      totalChunks: 0,
+      chunks: new Map(),
+      startTime: 0,
+      reconstructedText: ""
+    };
+
+    const cameraSelect = document.getElementById("cameraSelect");
+    const btnStartScan = document.getElementById("btnStartScan");
+    const btnStopScan = document.getElementById("btnStopScan");
+    const btnMuteToggle = document.getElementById("btnMuteToggle");
+    const btnTorchToggle = document.getElementById("btnTorchToggle");
+    const readerVideo = document.getElementById("readerVideo");
+    const scanCanvas = document.getElementById("scanCanvas");
+    const scanReticle = document.getElementById("scanReticle");
+    const scanStatus = document.getElementById("scanStatus");
+    const progressText = document.getElementById("progressText");
+    const progressPct = document.getElementById("progressPct");
+    const progressFill = document.getElementById("progressFill");
+    const chunkGrid = document.getElementById("chunkGrid");
+    const readerCompleteCard = document.getElementById("readerCompleteCard");
+    const completeStats = document.getElementById("completeStats");
+    const receivedPreview = document.getElementById("receivedPreview");
+    const downloadFilename = document.getElementById("downloadFilename");
+
+    if ("BarcodeDetector" in window) {
+      try {
+        readerState.detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      } catch (_) {
+        readerState.detector = null;
+      }
+    }
+
+    async function populateCameras() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videos = devices.filter(d => d.kind === "videoinput");
+        const prevVal = cameraSelect.value;
+        cameraSelect.innerHTML = '<option value="">Default Rear Camera (Auto)</option>';
+        videos.forEach((dev, idx) => {
+          const opt = document.createElement("option");
+          opt.value = dev.deviceId;
+          opt.textContent = dev.label || `Camera ${idx + 1}`;
+          cameraSelect.appendChild(opt);
+        });
+        if (prevVal) cameraSelect.value = prevVal;
+      } catch (_) {}
+    }
+
+    function renderChunkGrid() {
+      const total = readerState.totalChunks;
+      const got = readerState.chunks.size;
+      if (total === 0) {
+        progressText.textContent = "Waiting for first QR frame…";
+        progressPct.textContent = "0%";
+        progressFill.style.width = "0%";
+        chunkGrid.innerHTML = "";
+        return;
+      }
+      const pct = Math.round((got / total) * 100);
+      progressText.textContent = `Session ${readerState.sessionId}: ${got} / ${total} chunks received`;
+      progressPct.textContent = `${pct}%`;
+      progressFill.style.width = `${pct}%`;
+
+      if (chunkGrid.children.length !== total) {
+        chunkGrid.innerHTML = "";
+        for (let i = 1; i <= total; i++) {
+          const cell = document.createElement("div");
+          cell.className = "chunk-cell" + (readerState.chunks.has(i) ? " done" : "");
+          cell.id = `chunk-cell-${i}`;
+          cell.textContent = String(i);
+          chunkGrid.appendChild(cell);
+        }
+      } else {
+        for (let i = 1; i <= total; i++) {
+          const cell = document.getElementById(`chunk-cell-${i}`);
+          if (cell && readerState.chunks.has(i)) cell.classList.add("done");
+        }
+      }
+    }
+
+    function resetReaderBuffer() {
+      readerState.sessionId = null;
+      readerState.compFlag = "G";
+      readerState.totalChunks = 0;
+      readerState.chunks.clear();
+      readerState.startTime = 0;
+      readerState.reconstructedText = "";
+      readerCompleteCard.classList.add("hidden");
+      renderChunkGrid();
+      scanStatus.textContent = readerState.scanning ? "Scanning for QR frames…" : 'Tap "Start Camera Scan" and point at QR codes';
+    }
+
+    async function handleDecodedString(rawText) {
+      if (!rawText || !rawText.startsWith("QB1|")) return;
+      // Format: QB1|<sid>|<comp>|<idx>/<total>|<crc32>|<base64_chunk>
+      const p1 = rawText.indexOf("|", 4);
+      const p2 = rawText.indexOf("|", p1 + 1);
+      const p3 = rawText.indexOf("|", p2 + 1);
+      const p4 = rawText.indexOf("|", p3 + 1);
+      if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) return;
+
+      const sid = rawText.slice(4, p1);
+      const comp = rawText.slice(p1 + 1, p2);
+      const frac = rawText.slice(p2 + 1, p3);
+      const crc = rawText.slice(p3 + 1, p4);
+      const payload = rawText.slice(p4 + 1);
+
+      const slash = frac.indexOf("/");
+      if (slash < 0) return;
+      const idx = parseInt(frac.slice(0, slash), 10);
+      const total = parseInt(frac.slice(slash + 1), 10);
+      if (!idx || !total || idx < 1 || idx > total) return;
+
+      // Verify CRC32 integrity
+      const expectedCrc = crc32Hex(`${sid}|${comp}|${idx}/${total}|${payload}`);
+      if (crc !== expectedCrc) {
+        scanStatus.textContent = `⚠️ Checksum mismatch on frame #${idx} — retrying…`;
+        return;
+      }
+
+      // Detect new session ID and reset buffer cleanly
+      if (readerState.sessionId !== sid || readerState.totalChunks !== total) {
+        readerState.sessionId = sid;
+        readerState.compFlag = comp;
+        readerState.totalChunks = total;
+        readerState.chunks.clear();
+        readerState.startTime = performance.now();
+        readerCompleteCard.classList.add("hidden");
+        renderChunkGrid();
+      }
+
+      if (readerState.chunks.has(idx)) {
+        scanStatus.textContent = `✓ Frame #${idx}/${total} already captured (${readerState.chunks.size}/${total})`;
+        return;
+      }
+
+      // New valid chunk!
+      readerState.chunks.set(idx, payload);
+      playTone("chunk");
+      scanReticle.classList.add("flash");
+      setTimeout(() => scanReticle.classList.remove("flash"), 180);
+
+      renderChunkGrid();
+      const cell = document.getElementById(`chunk-cell-${idx}`);
+      if (cell) {
+        cell.classList.add("just-scanned");
+        setTimeout(() => cell.classList.remove("just-scanned"), 350);
+      }
+
+      scanStatus.textContent = `✨ Captured Frame #${idx}/${total}! (${readerState.chunks.size}/${total})`;
+
+      // Check completion
+      if (readerState.chunks.size === total) {
+        await finalizeTransfer();
+      }
+    }
+
+    async function finalizeTransfer() {
+      stopCameraScan();
+      playTone("done");
+      scanStatus.textContent = "✅ All frames captured! Assembling file…";
+
+      try {
+        let fullB64 = "";
+        for (let i = 1; i <= readerState.totalChunks; i++) {
+          fullB64 += readerState.chunks.get(i) || "";
+        }
+        const rawCompressedBytes = base64ToBytes(fullB64);
+        const finalMarkdown = await decompressUtf8(readerState.compFlag, rawCompressedBytes);
+        readerState.reconstructedText = finalMarkdown;
+
+        const elapsedSec = Math.max(0.1, (performance.now() - readerState.startTime) / 1000).toFixed(1);
+        const origBytes = new TextEncoder().encode(finalMarkdown).length;
+
+        completeStats.textContent = `Reassembled ${readerState.totalChunks} chunks into ${formatBytes(origBytes)} of Markdown (${readerState.compFlag === "G" ? "Gzip decompressed from " + formatBytes(rawCompressedBytes.length) : "Raw UTF-8"}) in ${elapsedSec}s.`;
+        receivedPreview.value = finalMarkdown;
+        readerCompleteCard.classList.remove("hidden");
+        readerCompleteCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (err) {
+        alert("Failed to decompress/reassemble payload: " + err.message);
+      }
+    }
+
+    async function scanFrameLoop(now) {
+      if (!readerState.scanning) return;
+      if (now - readerState.lastScanTime >= 110 && readerVideo.readyState >= 2) {
+        readerState.lastScanTime = now;
+        const vw = readerVideo.videoWidth;
+        const vh = readerVideo.videoHeight;
+        if (vw > 0 && vh > 0) {
+          // 1. Try hardware BarcodeDetector if supported
+          if (readerState.detector) {
+            try {
+              const codes = await readerState.detector.detect(readerVideo);
+              if (codes && codes.length > 0 && codes[0].rawValue) {
+                await handleDecodedString(codes[0].rawValue);
+              }
+            } catch (_) {
+              readerState.detector = null; // Fallback to Pure-JS decoder
+            }
+          }
+          // 2. Pure-JS Offline QR Decoder fallback (iOS Safari / Firefox / etc.)
+          if (!readerState.detector && readerState.scanning) {
+            const maxDim = 760;
+            const scale = Math.min(1, maxDim / Math.max(vw, vh));
+            const cw = Math.round(vw * scale);
+            const ch = Math.round(vh * scale);
+            scanCanvas.width = cw;
+            scanCanvas.height = ch;
+            const ctx = scanCanvas.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(readerVideo, 0, 0, cw, ch);
+            const imgData = ctx.getImageData(0, 0, cw, ch);
+            const decoded = decodeQRFromImageData(imgData);
+            if (decoded) {
+              await handleDecodedString(decoded);
+            }
+          }
+        }
+      }
+      if (readerState.scanning) {
+        readerState.rafId = requestAnimationFrame(scanFrameLoop);
+      }
+    }
+
+    async function startCameraScan() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Camera API unavailable. Make sure you opened this page over HTTPS (e.g., Netlify Drop or GitHub Pages).");
+        return;
+      }
+      stopCameraScan();
+      const selectedDeviceId = cameraSelect.value;
+      const constraints = {
+        audio: false,
+        video: selectedDeviceId
+          ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 960 } }
+          : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 960 } }
+      };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        readerState.stream = stream;
+        readerState.videoTrack = stream.getVideoTracks()[0] || null;
+        readerVideo.srcObject = stream;
+        await readerVideo.play();
+
+        // Refresh camera labels now that permission is granted
+        await populateCameras();
+        if (readerState.videoTrack && readerState.videoTrack.getSettings().deviceId) {
+          cameraSelect.value = readerState.videoTrack.getSettings().deviceId;
+        }
+
+        // Check torch capability
+        btnTorchToggle.classList.add("hidden");
+        readerState.torchOn = false;
+        if (readerState.videoTrack && readerState.videoTrack.getCapabilities) {
+          const caps = readerState.videoTrack.getCapabilities();
+          if (caps && caps.torch) {
+            btnTorchToggle.textContent = "🔦 Torch: Off";
+            btnTorchToggle.classList.remove("hidden");
+          }
+        }
+
+        readerState.scanning = true;
+        btnStartScan.classList.add("hidden");
+        btnStopScan.classList.remove("hidden");
+        scanStatus.textContent = "Scanning… point camera steadily at QR code";
+        requestWakeLock();
+        readerState.rafId = requestAnimationFrame(scanFrameLoop);
+      } catch (err) {
+        alert("Could not start camera: " + err.message + "\n\nTip: On iPhone/iPad, camera access requires opening the page via HTTPS.");
+      }
+    }
+
+    function stopCameraScan() {
+      readerState.scanning = false;
+      if (readerState.rafId) cancelAnimationFrame(readerState.rafId);
+      if (readerState.stream) {
+        readerState.stream.getTracks().forEach(t => t.stop());
+        readerState.stream = null;
+      }
+      readerState.videoTrack = null;
+      readerVideo.srcObject = null;
+      btnStartScan.classList.remove("hidden");
+      btnStopScan.classList.add("hidden");
+      btnTorchToggle.classList.add("hidden");
+      releaseWakeLock();
+    }
+
+    btnStartScan.addEventListener("click", startCameraScan);
+    btnStopScan.addEventListener("click", () => {
+      stopCameraScan();
+      scanStatus.textContent = "Camera stopped.";
+    });
+
+    cameraSelect.addEventListener("change", () => {
+      if (readerState.scanning) startCameraScan();
+    });
+
+    btnTorchToggle.addEventListener("click", async () => {
+      if (!readerState.videoTrack) return;
+      try {
+        readerState.torchOn = !readerState.torchOn;
+        await readerState.videoTrack.applyConstraints({ advanced: [{ torch: readerState.torchOn }] });
+        btnTorchToggle.textContent = readerState.torchOn ? "🔦 Torch: On" : "🔦 Torch: Off";
+      } catch (_) {}
+    });
+
+    btnMuteToggle.addEventListener("click", () => {
+      isMuted = !isMuted;
+      btnMuteToggle.textContent = isMuted ? "🔇 Beep: Off" : "🔊 Beep: On";
+    });
+
+    document.getElementById("btnResetReader").addEventListener("click", () => {
+      resetReaderBuffer();
+    });
+
+    document.getElementById("btnScanAnother").addEventListener("click", () => {
+      resetReaderBuffer();
+      startCameraScan();
+    });
+
+    document.getElementById("btnDownloadMd").addEventListener("click", () => {
+      let fname = (downloadFilename.value || "transferred-document.md").trim();
+      if (!fname.toLowerCase().endsWith(".md")) fname += ".md";
+      const blob = new Blob([readerState.reconstructedText], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    document.getElementById("btnCopyMd").addEventListener("click", async () => {
+      const btn = document.getElementById("btnCopyMd");
+      try {
+        await navigator.clipboard.writeText(readerState.reconstructedText);
+        const orig = btn.textContent;
+        btn.textContent = "✅ Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1600);
+      } catch (_) {
+        receivedPreview.select();
+        document.execCommand("copy");
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
